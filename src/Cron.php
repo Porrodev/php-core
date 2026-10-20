@@ -56,23 +56,65 @@ final class Cron
     }
 
     /**
-     * Whether a crontab already runs this command from this directory.
+     * Whether a crontab already runs this command for this project. Paths
+     * are compared after resolving symlinks, so a line pointing at
+     * /home/forge/site/current matches a site running from a release
+     * folder behind it, as zero-downtime deploys on Forge and Envoyer do.
+     *
+     * @param  string  $command  e.g. "artisan schedule:run" or "craft porro/report"
      */
     public static function hasEntry(string $crontab, string $directory, string $command): bool
     {
+        $keyword = trim((string) strrchr(' '.$command, ' '));
+        $target = realpath($directory) ?: $directory;
+
         foreach (preg_split('/\R/', $crontab) ?: [] as $line) {
             $line = trim($line);
 
-            if ($line === '' || str_starts_with($line, '#')) {
+            if ($line === '' || str_starts_with($line, '#') || ! str_contains($line, $keyword)) {
                 continue;
             }
 
-            if (str_contains($line, $command) && (str_contains($line, $directory) || str_contains($line, escapeshellarg($directory)))) {
-                return true;
+            preg_match_all('#/[^\s\'";&|]+#', $line, $paths);
+
+            foreach ($paths[0] as $path) {
+                // A folder (cd /path) or a script inside one (/path/artisan).
+                foreach ([rtrim($path, '/'), dirname($path)] as $folder) {
+                    if ($folder === rtrim($directory, '/') || realpath($folder) === $target) {
+                        return true;
+                    }
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether cron already runs this command for this project, looking in
+     * the user's crontab and the system ones (/etc/crontab, /etc/cron.d).
+     * Null when none of them can be read.
+     */
+    public static function isScheduled(string $directory, string $command, ?CrontabIo $io = null, string $etc = '/etc'): ?bool
+    {
+        $io ??= new CrontabIo;
+        $sources = [];
+
+        if ($io->available()) {
+            $sources[] = $io->read();
+        }
+
+        foreach ([$etc.'/crontab', ...(glob($etc.'/cron.d/*') ?: [])] as $file) {
+            if (is_file($file) && is_readable($file)) {
+                $sources[] = (string) file_get_contents($file);
+            }
+        }
+
+        if ($sources === []) {
+            return null;
+        }
+
+        return self::hasEntry(implode("\n", $sources), $directory, $command);
     }
 
     /**

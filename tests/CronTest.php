@@ -63,3 +63,25 @@ it('says when the server does not allow it', function () {
 it('uses the PHP binary that is running now', function () {
     expect(Cron::phpBinary())->toBe(PHP_BINARY);
 });
+
+it('matches a Forge line that points at the current symlink', function () {
+    $root = sys_get_temp_dir().'/porro-site-'.bin2hex(random_bytes(3));
+    mkdir("{$root}/releases/42", recursive: true);
+    touch("{$root}/releases/42/artisan");
+    symlink("{$root}/releases/42", "{$root}/current");
+
+    $forge = "* * * * * php8.3 {$root}/current/artisan schedule:run >> /dev/null 2>&1\n";
+
+    expect(Cron::hasEntry($forge, "{$root}/releases/42", 'artisan schedule:run'))->toBeTrue()
+        ->and(Cron::hasEntry($forge, sys_get_temp_dir(), 'artisan schedule:run'))->toBeFalse();
+});
+
+it('finds the scheduler in the system cron files too', function () {
+    $etc = sys_get_temp_dir().'/porro-etc-'.bin2hex(random_bytes(3));
+    mkdir("{$etc}/cron.d", recursive: true);
+    file_put_contents("{$etc}/cron.d/site", "* * * * * forge cd /var/www/app && php artisan schedule:run\n");
+
+    expect(Cron::isScheduled('/var/www/app', 'artisan schedule:run', new FakeCrontab(works: false), $etc))->toBeTrue()
+        ->and(Cron::isScheduled('/var/www/other', 'artisan schedule:run', new FakeCrontab(works: false), $etc))->toBeFalse()
+        ->and(Cron::isScheduled('/var/www/app', 'artisan schedule:run', new FakeCrontab(works: false), $etc.'/missing'))->toBeNull();
+});
