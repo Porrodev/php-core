@@ -1,0 +1,111 @@
+<?php
+
+namespace Porro\Core;
+
+use Composer\InstalledVersions;
+
+/**
+ * A connector report (schema 1). Facts about the software only: never
+ * content, customer data, environment values or secrets.
+ */
+final class Report
+{
+    /** @var array<string, mixed> */
+    private array $data;
+
+    public function __construct(string $connector, string $platform)
+    {
+        $this->data = [
+            'schema' => 1,
+            'connector' => ['name' => $connector, 'version' => self::installedVersion($connector) ?? 'dev'],
+            'sent_at' => gmdate('c'),
+            'php' => ['version' => PHP_VERSION],
+            'platform' => ['name' => $platform, 'version' => null, 'environment' => null],
+            'layers' => [],
+            'health' => [],
+            'lock' => null,
+        ];
+    }
+
+    public function platform(?string $version, ?string $environment): self
+    {
+        $this->data['platform']['version'] = $version;
+        $this->data['platform']['environment'] = $environment;
+
+        return $this;
+    }
+
+    /**
+     * Something layered on the platform, e.g. Filament or Statamic.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function layer(string $name, ?string $version, array $data = []): self
+    {
+        $this->data['layers'][] = ['name' => $name, 'version' => $version, 'data' => $data];
+
+        return $this;
+    }
+
+    public function health(string $key, mixed $value): self
+    {
+        $this->data['health'][$key] = $value;
+
+        return $this;
+    }
+
+    /**
+     * @param  array{name: string, status: string, summary?: string|null}  $check
+     */
+    public function check(array $check): self
+    {
+        $this->data['health']['checks'][] = $check;
+
+        return $this;
+    }
+
+    /**
+     * Always send the hash; send the package list only when asked to.
+     */
+    public function lock(?LockFile $lock, bool $includePackages): self
+    {
+        $this->data['lock'] = $lock ? [
+            'hash' => $lock->hash,
+            'packages' => $includePackages ? $lock->packages : null,
+        ] : null;
+
+        return $this;
+    }
+
+    public function lockHash(): ?string
+    {
+        return $this->data['lock']['hash'] ?? null;
+    }
+
+    public function includesPackages(): bool
+    {
+        return is_array($this->data['lock']['packages'] ?? null);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return $this->data;
+    }
+
+    public function toJson(): string
+    {
+        return (string) json_encode($this->data, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    public static function installedVersion(string $package): ?string
+    {
+        if (! class_exists(InstalledVersions::class) || ! InstalledVersions::isInstalled($package)) {
+            return null;
+        }
+
+        return InstalledVersions::getPrettyVersion($package);
+    }
+}

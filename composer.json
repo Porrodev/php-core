@@ -1,0 +1,47 @@
+{
+    "name": "porro/php-core",
+    "description": "Shared core for Porro connectors: site keys, signing, lock-file reading and sending reports.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://porro.dev",
+    "keywords": [
+        "porro",
+        "monitoring",
+        "composer",
+        "security"
+    ],
+    "require": {
+        "php": "^8.2",
+        "composer-runtime-api": "^2.2",
+        "paragonie/sodium_compat": "^1.21|^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Porro\\Core\\": "src/"
+        }
+    },
+    "minimum-stability": "stable",
+    "require-dev": {
+        "pestphp/pest": "^3.0|^4.0",
+        "laravel/pint": "^1.18"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Porro\\Core\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "lint": "pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "support": {
+        "issues": "https://github.com/Porrodev/php-core/issues",
+        "source": "https://github.com/Porrodev/php-core"
+    }
+}

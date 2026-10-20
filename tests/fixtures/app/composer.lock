@@ -1,0 +1,11 @@
+{
+    "content-hash": "abc",
+    "packages": [
+        { "name": "laravel/framework", "version": "v12.31.0" },
+        { "name": "livewire/livewire", "version": "v3.5.6" },
+        { "name": "symfony/console", "version": "v7.3.1" }
+    ],
+    "packages-dev": [
+        { "name": "pestphp/pest", "version": "v3.8.0" }
+    ]
+}
