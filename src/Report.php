@@ -27,6 +27,17 @@ final class Report
         ];
     }
 
+    /**
+     * What sent this report: "connect", "schedule" (cron or the Laravel
+     * scheduler) or "manual". Lets Porro tell whether cron is set up.
+     */
+    public function trigger(string $trigger): self
+    {
+        $this->data['trigger'] = $trigger;
+
+        return $this;
+    }
+
     public function platform(?string $version, ?string $environment): self
     {
         $this->data['platform']['version'] = $version;
