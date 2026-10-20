@@ -1,0 +1,13 @@
+__metadata:
+  version: 8
+
+"@vue/reactivity@npm:~3.1.1":
+  version: 3.1.5
+  resolution: "@vue/reactivity@npm:3.1.5"
+
+"alpinejs@npm:^3.14.0":
+  version: 3.14.1
+  resolution: "alpinejs@npm:3.14.1"
+
+"site@workspace:.":
+  version: 0.0.0-use.local

@@ -99,6 +99,30 @@ final class Report
     }
 
     /**
+     * The site's npm lock file, as lock() does for composer.lock. Null says
+     * the site has none, so Porro can forget npm packages it had.
+     */
+    public function npmLock(?NpmLockFile $lock, bool $includePackages): self
+    {
+        $this->data['npm_lock'] = $lock ? [
+            'hash' => $lock->hash,
+            'packages' => $includePackages ? $lock->packages : null,
+        ] : null;
+
+        return $this;
+    }
+
+    public function npmLockHash(): ?string
+    {
+        return $this->data['npm_lock']['hash'] ?? null;
+    }
+
+    public function includesNpmPackages(): bool
+    {
+        return is_array($this->data['npm_lock']['packages'] ?? null);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

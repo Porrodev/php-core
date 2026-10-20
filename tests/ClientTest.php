@@ -27,6 +27,17 @@ it('sends a signed report to the reports endpoint', function () {
         ->and(json_decode($calls[0]['body'], true))->toMatchArray(['schema' => 1, 'platform' => ['name' => 'laravel', 'version' => null, 'environment' => null]]);
 });
 
+it('passes on when Porro wants the npm packages', function () {
+    $key = siteKey();
+    $calls = [];
+    $client = new Client(SiteKey::parse($key['token']), 'https://porro.test/', fakeTransport([[202, '{"ok":true,"need_lock":false,"need_npm_lock":true}']], $calls), retries: 0);
+
+    $result = $client->send(new Report('porro/laravel-connector', 'laravel'));
+
+    expect($result->needLock)->toBeFalse()
+        ->and($result->needNpmLock)->toBeTrue();
+});
+
 it('retries network and server errors with a fresh signature, never rejections', function () {
     $calls = [];
     $client = new Client(SiteKey::parse(siteKey()['token']), 'https://porro.test', fakeTransport([[0, 'timeout'], [503, ''], [202, '{"ok":true}']], $calls));

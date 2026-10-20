@@ -39,7 +39,7 @@ final class Client
             $json = json_decode($response, true);
 
             if ($status >= 200 && $status < 300) {
-                return new Result(true, $status, (bool) ($json['need_lock'] ?? false));
+                return new Result(true, $status, (bool) ($json['need_lock'] ?? false), needNpmLock: (bool) ($json['need_npm_lock'] ?? false));
             }
 
             // Retry network errors and server errors, never rejections.

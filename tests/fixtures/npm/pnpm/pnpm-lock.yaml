@@ -1,0 +1,26 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      alpinejs:
+        specifier: ^3.14.0
+        version: 3.14.1
+
+packages:
+
+  alpinejs@3.14.1:
+    resolution: {integrity: sha512-abc}
+
+  '@vue/reactivity@3.1.5':
+    resolution: {integrity: sha512-def}
+
+  vite@5.4.8(@types/node@22.0.0):
+    resolution: {integrity: sha512-ghi}
+
+snapshots:
+
+  alpinejs@3.14.1:
+    dependencies:
+      '@vue/reactivity': 3.1.5
