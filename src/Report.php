@@ -14,6 +14,14 @@ final class Report
     /** @var array<string, mixed> */
     private array $data;
 
+    /**
+     * The server's installed packages, kept out of the report until Porro
+     * asks for them: it already has the list whenever the hash matches.
+     *
+     * @var list<array<string, string>>|null
+     */
+    private ?array $systemPackages = null;
+
     public function __construct(string $connector, string $platform)
     {
         $this->data = [
@@ -25,20 +33,51 @@ final class Report
             'layers' => [],
             'health' => [],
             'lock' => null,
-            'system' => System::read(),
+            'system' => null,
         ];
+
+        $this->system(System::read());
     }
 
     /**
-     * Replace what System::read() found, e.g. in tests.
+     * Replace what System::read() found, e.g. in tests. The package list
+     * is held back until systemPackages(true).
      *
      * @param  array<string, mixed>|null  $system
      */
     public function system(?array $system): self
     {
+        $this->systemPackages = is_array($system['packages'] ?? null) ? $system['packages'] : null;
+
+        if (is_array($system) && array_key_exists('packages', $system)) {
+            $system['packages'] = null;
+        }
+
         $this->data['system'] = $system;
 
         return $this;
+    }
+
+    /**
+     * Send the server's package list with the report, or just its hash.
+     */
+    public function systemPackages(bool $include): self
+    {
+        if (is_array($this->data['system'] ?? null) && $this->systemPackages !== null) {
+            $this->data['system']['packages'] = $include ? $this->systemPackages : null;
+        }
+
+        return $this;
+    }
+
+    public function systemPackagesHash(): ?string
+    {
+        return $this->data['system']['packages_hash'] ?? null;
+    }
+
+    public function includesSystemPackages(): bool
+    {
+        return is_array($this->data['system']['packages'] ?? null);
     }
 
     /**

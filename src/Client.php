@@ -24,6 +24,20 @@ final class Client
 
     public function send(Report $report): Result
     {
+        $result = $this->deliver($report);
+
+        // Porro doesn't have this server's package list yet (it changed, or
+        // it's a new server): send the report again, once, with the list.
+        if ($result->ok && $result->needSystemPackages && ! $report->includesSystemPackages() && $report->systemPackagesHash() !== null) {
+            $report->systemPackages(true);
+            $result = $this->deliver($report);
+        }
+
+        return $result;
+    }
+
+    private function deliver(Report $report): Result
+    {
         $body = $report->toJson();
         $url = rtrim($this->baseUrl, '/').'/api/v1/reports';
         $attempt = 0;
@@ -39,7 +53,13 @@ final class Client
             $json = json_decode($response, true);
 
             if ($status >= 200 && $status < 300) {
-                return new Result(true, $status, (bool) ($json['need_lock'] ?? false), needNpmLock: (bool) ($json['need_npm_lock'] ?? false));
+                return new Result(
+                    true,
+                    $status,
+                    (bool) ($json['need_lock'] ?? false),
+                    needNpmLock: (bool) ($json['need_npm_lock'] ?? false),
+                    needSystemPackages: (bool) ($json['need_system_packages'] ?? false),
+                );
             }
 
             // Retry network errors and server errors, never rejections.

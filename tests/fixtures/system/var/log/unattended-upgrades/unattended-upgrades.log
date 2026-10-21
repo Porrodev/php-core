@@ -1,0 +1,7 @@
+2026-10-19 06:14:02,118 INFO Starting unattended upgrades script
+2026-10-19 06:14:02,119 INFO Allowed origins are: o=Ubuntu,a=noble, o=Ubuntu,a=noble-security
+2026-10-19 06:14:09,553 INFO No packages found that can be upgraded unattended and no pending auto-removals
+2026-10-20 06:31:47,902 INFO Starting unattended upgrades script
+2026-10-20 06:31:47,903 INFO Allowed origins are: o=Ubuntu,a=noble, o=Ubuntu,a=noble-security
+2026-10-20 06:32:15,004 INFO Packages that will be upgraded: libssl3t64 openssl
+2026-10-20 06:32:31,771 INFO All upgrades installed
