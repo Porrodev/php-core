@@ -1,0 +1,83 @@
+Package: openssl
+Status: install ok installed
+Priority: important
+Section: utils
+Installed-Size: 1720
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: foreign
+Version: 3.0.13-0ubuntu3.4
+Depends: libc6 (>= 2.34), libssl3t64 (>= 3.0.13)
+Description: Secure Sockets Layer toolkit - cryptographic utility
+ This package is part of the OpenSSL project's implementation of the SSL
+ and TLS cryptographic protocols for secure communication over the
+ Internet.
+ .
+ It contains the general-purpose command line binary /usr/bin/openssl,
+ useful for cryptographic operations such as:
+Original-Maintainer: Debian OpenSSL Team <pkg-openssl-devel@alioth-lists.debian.net>
+
+Package: libssl3t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 6820
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: same
+Source: openssl
+Version: 3.0.13-0ubuntu3.4
+Description: Secure Sockets Layer toolkit - shared libraries
+
+Package: libc6
+Status: install ok installed
+Architecture: amd64
+Source: glibc
+Version: 2.39-0ubuntu8.3
+Description: GNU C Library: Shared libraries
+
+Package: libc6
+Status: install ok installed
+Architecture: i386
+Source: glibc
+Version: 2.39-0ubuntu8.3
+Description: GNU C Library: Shared libraries
+
+Package: libudev1
+Status: hold ok installed
+Architecture: amd64
+Source: systemd (255.4-1ubuntu8.4)
+Version: 1:255.4-1ubuntu8.4
+Description: libudev shared library
+
+Package: php8.5-fpm
+Status: install ok installed
+Architecture: amd64
+Source: php8.5
+Version: 8.5.1-1+ubuntu24.04.1+deb.sury.org+1
+Description: server-side, HTML-embedded scripting language (FPM-CGI binary)
+
+Package: nginx
+Status: install ok installed
+Architecture: amd64
+Origin: nginx
+Version: 1.27.3-1~noble
+Description: high performance web server
+
+Package: unattended-upgrades
+Status: install ok installed
+Architecture: all
+Version: 2.9.1+nmu4ubuntu1
+Description: automatic installation of security upgrades
+
+Package: apache2
+Status: deinstall ok config-files
+Architecture: amd64
+Version: 2.4.58-1ubuntu8.4
+Description: Apache HTTP Server
+
+Package: tzdata
+Status: install ok half-configured
+Architecture: all
+Version: 2024a-3ubuntu1.1
+Description: time zone and daylight-saving time data

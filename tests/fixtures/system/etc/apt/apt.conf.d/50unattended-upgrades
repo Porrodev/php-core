@@ -1,0 +1,5 @@
+// Unattended-Upgrade::Origins-Pattern controls which packages are upgraded.
+// APT::Periodic::Unattended-Upgrade "0";
+Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+};
