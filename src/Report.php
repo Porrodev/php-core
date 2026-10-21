@@ -5,8 +5,9 @@ namespace Porro\Core;
 use Composer\InstalledVersions;
 
 /**
- * A connector report (schema 1). Facts about the software only: never
- * content, customer data, environment values or secrets.
+ * A connector report (schema 1). Facts about the software and the server
+ * it runs on only: never content, customer data, environment values or
+ * secrets.
  */
 final class Report
 {
@@ -24,7 +25,20 @@ final class Report
             'layers' => [],
             'health' => [],
             'lock' => null,
+            'system' => System::read(),
         ];
+    }
+
+    /**
+     * Replace what System::read() found, e.g. in tests.
+     *
+     * @param  array<string, mixed>|null  $system
+     */
+    public function system(?array $system): self
+    {
+        $this->data['system'] = $system;
+
+        return $this;
     }
 
     /**

@@ -20,6 +20,17 @@ A site key looks like `porro_{site id}_{seed}`. The seed is the private half of 
 
 and sent with `X-Porro-Site`, `X-Porro-Timestamp`, `X-Porro-Nonce` and `X-Porro-Signature` headers. Porro rejects a report outside a 5-minute window or if it has seen the nonce before. If `ext-sodium` isn't available, `paragonie/sodium_compat` provides it in pure PHP.
 
+## What a report says about the server
+
+Each report includes a `system` block, so Porro can flag an end-of-life OS and match Ubuntu and Debian security notices to the server:
+
+- `os`: `ID`, `VERSION_ID`, `VERSION_CODENAME` and `PRETTY_NAME` from `/etc/os-release`
+- `kernel`: the running kernel (`php_uname('r')`)
+- `reboot_required`: whether `/var/run/reboot-required` exists (Debian and Ubuntu)
+- `fingerprint`: an HMAC-SHA256 of `/etc/machine-id` under a Porro-specific key, so sites on one server share one record. The machine id itself is never sent.
+
+These are plain file reads, with no `exec`. Anything the PHP process can't read, such as files outside `open_basedir` on shared hosting, is left out.
+
 ## Developing
 
 ```bash
