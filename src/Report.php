@@ -10,6 +10,21 @@ use Composer\InstalledVersions;
  */
 final class Report
 {
+    public const TRIGGER_CONNECT = 'connect';
+
+    // Cron, or the Laravel scheduler.
+    public const TRIGGER_SCHEDULE = 'schedule';
+
+    public const TRIGGER_MANUAL = 'manual';
+
+    public const TRIGGER_DEPLOY = 'deploy';
+
+    // A control panel visit, as a backup for a missing cron line.
+    public const TRIGGER_CP = 'cp';
+
+    // Straight after something changed: a plugin or the platform updated.
+    public const TRIGGER_EVENT = 'event';
+
     /** @var array<string, mixed> */
     private array $data;
 
@@ -28,8 +43,8 @@ final class Report
     }
 
     /**
-     * What sent this report: "connect", "schedule" (cron or the Laravel
-     * scheduler) or "manual". Lets Porro tell whether cron is set up.
+     * What sent this report: one of the TRIGGER_ constants. Lets Porro
+     * tell whether cron is set up, and running.
      */
     public function trigger(string $trigger): self
     {

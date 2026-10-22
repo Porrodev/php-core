@@ -20,6 +20,8 @@ final class Client
         private readonly string $baseUrl = self::DEFAULT_URL,
         private readonly ?Closure $transport = null,
         private readonly int $retries = 2,
+        // Seconds; backup reports use a short one so they never hold anything up.
+        private readonly int $timeout = 15,
     ) {}
 
     public function send(Report $report): Result
@@ -64,7 +66,7 @@ final class Client
             'method' => 'POST',
             'header' => implode("\r\n", array_map(fn ($k, $v) => "{$k}: {$v}", array_keys($headers), $headers)),
             'content' => $body,
-            'timeout' => 15,
+            'timeout' => $this->timeout,
             'ignore_errors' => true,
         ]]);
 
