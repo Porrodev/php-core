@@ -20,6 +20,21 @@ A site key looks like `porro_{site id}_{seed}`. The seed is the private half of 
 
 and sent with `X-Porro-Site`, `X-Porro-Timestamp`, `X-Porro-Nonce` and `X-Porro-Signature` headers. Porro rejects a report outside a 5-minute window or if it has seen the nonce before. If `ext-sodium` isn't available, `paragonie/sodium_compat` provides it in pure PHP.
 
+## What a report says about the server
+
+Each report includes a `system` block, so Porro can flag an end-of-life OS and match Ubuntu and Debian security notices against the server's installed packages:
+
+- `os`: `ID`, `VERSION_ID`, `VERSION_CODENAME` and `PRETTY_NAME` from `/etc/os-release`
+- `kernel`: the running kernel (`php_uname('r')`)
+- `reboot_required`: whether `/var/run/reboot-required` exists (Debian and Ubuntu)
+- `fingerprint`: an HMAC-SHA256 of `/etc/machine-id` under a Porro-specific key, so sites on one server share one record. The machine id itself is never sent.
+- `packages`: the installed packages from `/var/lib/dpkg/status` (status `install ok installed` or `hold ok installed`), each with `name`, `version`, `source` (the source package Ubuntu and Debian notices name; the package's own name when it has no `Source:` field) and `arch`, plus `source_version` when the source's version differs from the package's, and `origin` when the package declares one
+- `packages_hash`: a SHA-256 of that list. The list itself is only sent when Porro asks for it, because the hash is new to it (the same idea as the `composer.lock` hash): `Client::send()` sees `need_system_packages` in Porro's reply and sends the report once more with the list, so connectors don't need to do anything
+- `unattended_upgrades.enabled`: whether `APT::Periodic::Unattended-Upgrade` is set to anything but `"0"` in `/etc/apt/apt.conf.d` (`20auto-upgrades` on a stock server) and the `unattended-upgrades` package is installed
+- `unattended_upgrades.last_run_at`: when it last started, from the end of `/var/log/unattended-upgrades/unattended-upgrades.log`, in ISO 8601 with the server's offset. That log is often readable by root only, in which case this is `null`
+
+These are plain file reads, with no `exec`. Anything the PHP process can't read, such as files outside `open_basedir` on shared hosting, is left out: `null`, or `false` for `reboot_required`.
+
 ## Developing
 
 ```bash
