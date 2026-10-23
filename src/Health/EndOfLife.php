@@ -51,7 +51,7 @@ final class EndOfLife
 
         $today = ($this->today ?? new DateTimeImmutable('today'))->setTime(0, 0);
         $newest = $this->newest($cycles, $today);
-        $upgrade = $newest && $newest !== $cycle ? "Upgrade to {$label} {$newest}" : null;
+        $upgrade = $newest && $newest !== $cycle ? " · upgrade to {$label} {$newest}" : '';
         $kind = $product === 'php' ? 'unsupported_php' : 'unsupported_platform';
 
         if ($until < $today) {
@@ -59,8 +59,7 @@ final class EndOfLife
                 $kind,
                 Issue::WARNING,
                 "{$label} {$cycle} is past security support",
-                "{$label} {$version} · security support ended ".$until->format('j M Y').' · it no longer gets security fixes',
-                $upgrade,
+                "{$label} {$version} · security support ended ".$until->format('j M Y').' · it no longer gets security fixes'.$upgrade,
             );
         }
 
@@ -71,8 +70,7 @@ final class EndOfLife
                 $kind === 'unsupported_php' ? 'php_ending_soon' : 'platform_ending_soon',
                 Issue::NOTICE,
                 "{$label} {$cycle} security support ends in {$days} ".($days === 1 ? 'day' : 'days'),
-                "{$label} {$version} · ends ".$until->format('j M Y'),
-                $upgrade,
+                "{$label} {$version} · ends ".$until->format('j M Y').$upgrade,
             );
         }
 

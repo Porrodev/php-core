@@ -23,7 +23,7 @@ final class Issue
         public readonly string $severity,
         public readonly string $title,
         public readonly ?string $detail = null,
-        // A command to run or a short instruction.
+        // A command that fixes it, shown as code. Advice goes in the detail.
         public readonly ?string $fix = null,
         public readonly ?string $url = null,
         public readonly string $source = self::SOURCE_SITE,

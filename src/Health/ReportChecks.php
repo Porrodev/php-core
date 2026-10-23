@@ -83,9 +83,8 @@ final class ReportChecks
             Issue::CRITICAL,
             'Debug mode is on in production',
             $craft
-                ? 'Dev mode shows errors, stack traces and template paths to anyone who visits'
-                : 'APP_DEBUG shows errors, stack traces and environment values to anyone who visits',
-            $craft ? 'Set CRAFT_DEV_MODE=false in .env' : 'Set APP_DEBUG=false in .env',
+                ? 'Dev mode shows errors, stack traces and template paths to anyone who visits · set CRAFT_DEV_MODE=false in .env'
+                : 'APP_DEBUG shows errors, stack traces and environment values to anyone who visits · set APP_DEBUG=false in .env',
         );
     }
 
@@ -104,8 +103,10 @@ final class ReportChecks
             'failed_jobs',
             Issue::NOTICE,
             "{$failed} failed ".($failed === 1 ? 'job' : 'jobs').' in the last 24 hours',
-            $craft ? 'From Craft’s queue' : 'From the failed_jobs table',
-            $craft ? 'Retry or release them in Utilities → Queue Manager once fixed' : 'php artisan queue:retry all, once fixed',
+            $craft
+                ? 'From Craft’s queue · retry or release them in Utilities → Queue Manager once the cause is fixed'
+                : 'From the failed_jobs table · retry them once the cause is fixed',
+            $craft ? null : 'php artisan queue:retry all',
         );
     }
 
@@ -148,9 +149,9 @@ final class ReportChecks
             Issue::WARNING,
             "Queue stuck · {$waiting} ".($waiting === 1 ? 'job' : 'jobs').' waiting',
             'Oldest waiting since '.$oldest->format('j M H:i').(($health['queue_runs_automatically'] ?? false) === true
-                ? ' · Craft only runs the queue while someone has the control panel open'
-                : ' · the queue worker isn’t picking jobs up'),
-            'Run php craft queue/listen as a daemon, or php craft queue/run from cron',
+                ? ' · Craft only runs the queue while someone has the control panel open · run queue/listen as a daemon, or queue/run from cron'
+                : ' · the queue worker isn’t picking jobs up · check queue/listen is running'),
+            'php craft queue/run',
         );
     }
 
@@ -174,7 +175,7 @@ final class ReportChecks
         $hours = (int) floor(($this->now()->getTimestamp() - $last->getTimestamp()) / 3600);
 
         return $hours >= self::BACKUP_STALE_HOURS
-            ? new Issue('backup_stale', Issue::WARNING, "Last backup {$hours} hours ago", 'spatie/laravel-backup · last successful '.$last->format('j M H:i'), 'Check the scheduler runs backup:run')
+            ? new Issue('backup_stale', Issue::WARNING, "Last backup {$hours} hours ago", 'spatie/laravel-backup · last successful '.$last->format('j M H:i').' · check the scheduler runs backup:run', 'php artisan backup:run')
             : null;
     }
 

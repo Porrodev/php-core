@@ -67,8 +67,8 @@ describe('end of life', function () {
         expect($issue->kind)->toBe('unsupported_php')
             ->and($issue->severity)->toBe(Issue::WARNING)
             ->and($issue->title)->toBe('PHP 8.1 is past security support')
-            ->and($issue->detail)->toContain('ended 31 Dec 2025')
-            ->and($issue->fix)->toBe('Upgrade to PHP 8.4');
+            ->and($issue->detail)->toBe('PHP 8.1.29 · security support ended 31 Dec 2025 · it no longer gets security fixes · upgrade to PHP 8.4')
+            ->and($issue->fix)->toBeNull();
     });
 
     it('warns 90 days ahead and says nothing before that', function () {
@@ -83,7 +83,7 @@ describe('end of life', function () {
         expect($soon->kind)->toBe('platform_ending_soon')
             ->and($soon->severity)->toBe(Issue::NOTICE)
             ->and($soon->title)->toBe('Craft 4 security support ends in 69 days')
-            ->and($soon->fix)->toBe('Upgrade to Craft 5')
+            ->and($soon->detail)->toBe('Craft 4.12.3 · ends 31 Dec 2026 · upgrade to Craft 5')
             ->and($later)->toBeNull();
     });
 
@@ -101,7 +101,7 @@ describe('end of life', function () {
     it('reads versions with a v in front', function () {
         $sources = fakeSources(['GET https://endoflife.date/api/statamic.json' => eolResponse([['cycle' => '6', 'eol' => '2027-12-31'], ['cycle' => '5', 'eol' => '2026-12-31']])]);
 
-        expect((new EndOfLife($sources, new DateTimeImmutable('2026-10-23')))->check('statamic', 'v5.74.7')->detail)->toBe('Statamic 5.74.7 · ends 31 Dec 2026');
+        expect((new EndOfLife($sources, new DateTimeImmutable('2026-10-23')))->check('statamic', 'v5.74.7')->detail)->toBe('Statamic 5.74.7 · ends 31 Dec 2026 · upgrade to Statamic 6');
     });
 
     it('ignores products and versions it doesn’t know', function () {
@@ -220,7 +220,8 @@ describe('report checks', function () {
         ]]);
 
         expect($local)->toBe([])
-            ->and($craft[0]->fix)->toBe('Set CRAFT_DEV_MODE=false in .env')
+            ->and($craft[0]->detail)->toEndWith('set CRAFT_DEV_MODE=false in .env')
+            ->and($craft[0]->fix)->toBeNull()
             ->and($craft[1]->fix)->toBe('php craft up')
             ->and($craft[2]->title)->toBe('Queue stuck · 4 jobs waiting');
     });
