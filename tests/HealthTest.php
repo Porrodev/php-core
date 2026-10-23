@@ -122,6 +122,9 @@ describe('advisories', function () {
         'monolog/monolog' => [
             ['title' => 'Old bug', 'cve' => null, 'affectedVersions' => '<2.0.0', 'severity' => 'critical'],
         ],
+        'acme/odd' => [
+            ['title' => 'Odd link', 'link' => 'javascript:alert(1)', 'affectedVersions' => '<2.0.0', 'severity' => 'low'],
+        ],
         'phpunit/phpunit' => [
             ['title' => 'Dev only', 'cve' => null, 'affectedVersions' => '<99', 'severity' => 'critical'],
         ],
@@ -130,13 +133,13 @@ describe('advisories', function () {
     it('matches advisories against installed versions and ranks them like Porro', function () use ($response) {
         $calls = [];
         $lock = lockWith(
-            [['name' => 'guzzlehttp/guzzle', 'version' => '7.9.0'], ['name' => 'monolog/monolog', 'version' => '3.7.0'], ['name' => 'acme/fork', 'version' => 'dev-main']],
+            [['name' => 'guzzlehttp/guzzle', 'version' => '7.9.0'], ['name' => 'monolog/monolog', 'version' => '3.7.0'], ['name' => 'acme/fork', 'version' => 'dev-main'], ['name' => 'acme/odd', 'version' => '1.0.0']],
             [['name' => 'phpunit/phpunit', 'version' => '11.0.0']],
         );
 
         $issues = (new Advisories(fakeSources(['POST https://packagist.org/api/security-advisories/' => $response], $calls)))->check($lock);
 
-        expect($issues)->toHaveCount(2)
+        expect($issues)->toHaveCount(3)
             ->and($issues[0]->kind)->toBe('advisory')
             ->and($issues[0]->severity)->toBe(Issue::CRITICAL)
             ->and($issues[0]->title)->toBe('2 advisories in guzzlehttp/guzzle')
@@ -144,11 +147,13 @@ describe('advisories', function () {
             ->and($issues[0]->url)->toBe('https://github.com/advisories/GHSA-2')
             ->and($issues[0]->fix)->toBe('composer update guzzlehttp/guzzle')
             ->and($issues[1]->kind)->toBe('advisory_low')
-            ->and($issues[1]->title)->toBe('Critical advisory in phpunit/phpunit · dev dependency');
+            ->and($issues[1]->title)->toBe('Low advisory in acme/odd')
+            ->and($issues[1]->url)->toBeNull()
+            ->and($issues[2]->title)->toBe('Critical advisory in phpunit/phpunit · dev dependency');
 
         // Names only: no versions, and dev branches aren't asked about.
         parse_str($calls[0]['body'], $sent);
-        expect($sent['packages'])->toBe(['guzzlehttp/guzzle', 'monolog/monolog', 'phpunit/phpunit']);
+        expect($sent['packages'])->toBe(['guzzlehttp/guzzle', 'monolog/monolog', 'acme/odd', 'phpunit/phpunit']);
     });
 
     it('asks Packagist once per lock file', function () use ($response) {

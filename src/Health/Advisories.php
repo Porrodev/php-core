@@ -108,7 +108,8 @@ final class Advisories
                 implode(', ', $cves),
             ])),
             "composer update {$package['name']}",
-            is_string($worst['link'] ?? null) ? $worst['link'] : null,
+            // Only web links become links in the control panel.
+            is_string($worst['link'] ?? null) && preg_match('#^https?://#i', $worst['link']) ? $worst['link'] : null,
         );
     }
 }
