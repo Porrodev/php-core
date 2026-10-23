@@ -40,6 +40,7 @@ final class EndOfLife
         }
 
         [$slug, , $label] = self::PRODUCTS[$product];
+        $version = ltrim((string) $version, 'vV');
         $cycles = $this->cycles($slug);
         $support = $cycles[$cycle] ?? null;
         $until = $support ? self::date($support['eol']) : null;

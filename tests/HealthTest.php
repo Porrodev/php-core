@@ -98,6 +98,12 @@ describe('end of life', function () {
             ->and($calls)->toHaveCount(1);
     });
 
+    it('reads versions with a v in front', function () {
+        $sources = fakeSources(['GET https://endoflife.date/api/statamic.json' => eolResponse([['cycle' => '6', 'eol' => '2027-12-31'], ['cycle' => '5', 'eol' => '2026-12-31']])]);
+
+        expect((new EndOfLife($sources, new DateTimeImmutable('2026-10-23')))->check('statamic', 'v5.74.7')->detail)->toBe('Statamic 5.74.7 · ends 31 Dec 2026');
+    });
+
     it('ignores products and versions it doesn’t know', function () {
         $eol = new EndOfLife(fakeSources([]), new DateTimeImmutable('2026-10-23'));
 
