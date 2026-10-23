@@ -35,6 +35,17 @@ Each report includes a `system` block, so Porro can flag an end-of-life OS and m
 
 These are plain file reads, with no `exec`. Anything the PHP process can't read, such as files outside `open_basedir` on shared hosting, is left out: `null`, or `false` for `reboot_required`.
 
+## What a report says about the database
+
+Connectors describe the site's default database connection with `Database::describe($driver, $serverVersion, $host)` and pass it to `Report::database()`, so Porro can flag an end-of-life MySQL, MariaDB or PostgreSQL:
+
+- `engine`: `mysql`, `mariadb`, `pgsql`, `sqlite` or `sqlsrv`. PDO calls MariaDB `mysql`; it's told apart by its version string
+- `version`: just the number, e.g. `10.11.6` from `5.5.5-10.11.6-MariaDB-0ubuntu0.24.04.1` or `16.4` from `PostgreSQL 16.4 (Ubuntu…) on x86_64…`
+- `local`: whether the database is on the same machine (the default host, `localhost`, a loopback address or a unix socket). `null` for SQLite
+- `managed`: the service's name when the host is a known managed database (Amazon RDS, DigitalOcean, Laravel Cloud, Azure, PlanetScale, Neon, Supabase, Google Cloud SQL)
+
+The host, database name, user and credentials are never sent. If the connection can't be read, `database` is `null`.
+
 ## Developing
 
 ```bash
