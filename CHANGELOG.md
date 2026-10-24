@@ -9,6 +9,7 @@
 - Advisory titles are shortened without needing `ext-mbstring`.
 - `EndOfLife::forget()`, `Advisories::forget()` and `Updates::forget()`, for a "check again" that fetches everything again.
 - `PorroFindings` skips findings that aren't plain values instead of failing on them.
+- `Porro\Core\Database::describe()` and `Report::database()`: the site's database engine, version, whether it's on the same machine and whether it's a known managed service, so Porro can flag an end-of-life MySQL, MariaDB or PostgreSQL. The host, database name, user and credentials are never sent.
 
 ## 0.2.0 - 2026-10-23
 
