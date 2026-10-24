@@ -124,4 +124,13 @@ final class Advisories
 
         return preg_match('/^.{0,'.$length.'}/su', $text, $m) ? $m[0] : substr($text, 0, $length);
     }
+
+    /**
+     * Forgets the cached advisories for this lock file, e.g. after a
+     * "check again".
+     */
+    public function forget(LockFile $lock): void
+    {
+        $this->sources->forget('advisories:'.$lock->hash);
+    }
 }

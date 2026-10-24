@@ -239,6 +239,40 @@ describe('report checks', function () {
     });
 });
 
+describe('forgetting', function () {
+    it('fetches support dates, advisories and releases again once forgotten', function () {
+        $calls = [];
+        $cache = [];
+        $sources = fakeSources([], $calls, $cache);
+        $lock = lockWith([['name' => 'a/b', 'version' => '1.0.0']]);
+        $eol = new EndOfLife($sources, new DateTimeImmutable('2026-10-23'));
+        $advisories = new Advisories($sources);
+        $updates = new Updates($sources);
+
+        $run = function () use ($eol, $advisories, $updates, $lock) {
+            $eol->check('craft', '5.4.1');
+            $advisories->check($lock);
+            $updates->latestInLine('craftcms/cms', '5.4.1');
+        };
+
+        $run();
+        $run();
+        expect($calls)->toHaveCount(3);
+
+        $eol->forget('craft');
+        $advisories->forget($lock);
+        $updates->forget('craftcms/cms');
+        $run();
+
+        expect($calls)->toHaveCount(6)
+            ->and(array_column(array_slice($calls, 3), 'url'))->toBe([
+                'https://endoflife.date/api/craft-cms.json',
+                'https://packagist.org/api/security-advisories/',
+                'https://repo.packagist.org/p2/craftcms/cms.json',
+            ]);
+    });
+});
+
 describe('sources', function () {
     it('treats a response over the size limit as a failure', function () {
         $calls = [];
