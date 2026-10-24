@@ -1,6 +1,6 @@
 {
     "name": "porro/php-core",
-    "description": "Shared core for Porro connectors: site keys, signing, lock-file reading and sending reports.",
+    "description": "Shared core for Porro connectors: site keys, signing, lock-file reading, sending reports and local site health checks.",
     "type": "library",
     "license": "MIT",
     "homepage": "https://porro.dev",
@@ -13,6 +13,7 @@
     "require": {
         "php": "^8.2",
         "composer-runtime-api": "^2.2",
+        "composer/semver": "^3.4",
         "paragonie/sodium_compat": "^1.21|^2.0"
     },
     "autoload": {
