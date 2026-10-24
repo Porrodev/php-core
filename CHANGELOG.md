@@ -7,6 +7,7 @@
 - `PorroFindings` caches per Porro URL and key (`SiteKey::id()`), so changing either never shows the old answer.
 - `Sources` treats responses over 5MB (`Sources::MAX_BYTES`) as failures and passes the limit to the HTTP closure, so it can stop reading.
 - Advisory titles are shortened without needing `ext-mbstring`.
+- `PorroFindings` skips findings that aren't plain values instead of failing on them.
 
 ## 0.2.0 - 2026-10-23
 

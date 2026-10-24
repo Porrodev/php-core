@@ -328,6 +328,20 @@ describe('porro findings', function () {
         expect($calls)->toHaveCount(2);
     });
 
+    it('skips malformed findings', function () {
+        $sources = fakeSources(['GET https://porro.test/api/v1/findings' => [200, json_encode(['ok' => true, 'site' => 'nope', 'findings' => [
+            'nope',
+            ['title' => ['nope']],
+            ['kind' => ['x'], 'rank' => ['x'], 'title' => 'Down', 'detail' => ['x'], 'url' => ['x'], 'scope' => ['x']],
+        ]])]]);
+
+        $result = (new PorroFindings($sources, SiteKey::parse(siteKey()['token']), 'https://porro.test'))->fetch();
+
+        expect($result['ok'])->toBeTrue()
+            ->and($result['site_url'])->toBeNull()
+            ->and(array_map(fn ($i) => [$i->kind, $i->title, $i->detail, $i->url, $i->scope], $result['findings']))->toBe([['', 'Down', null, null, 'site']]);
+    });
+
     it('reports when Porro can’t be reached', function () {
         $result = (new PorroFindings(fakeSources([]), SiteKey::parse(siteKey()['token']), 'https://porro.test'))->fetch();
 

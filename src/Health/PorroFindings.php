@@ -45,9 +45,12 @@ final class PorroFindings
         $findings = [];
 
         foreach ($data['findings'] as $finding) {
-            if (! is_array($finding) || ! isset($finding['title'])) {
+            if (! is_array($finding) || ! is_scalar($finding['title'] ?? null)) {
                 continue;
             }
+
+            // Only plain values, so a malformed finding can't break the panel.
+            $finding = array_map(fn ($value) => is_scalar($value) ? $value : null, $finding);
 
             $findings[] = new Issue(
                 (string) ($finding['kind'] ?? ''),
