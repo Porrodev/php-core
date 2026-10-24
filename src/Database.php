@@ -12,7 +12,7 @@ final class Database
 {
     private const ENGINES = ['mysql', 'mariadb', 'pgsql', 'sqlite', 'sqlsrv'];
 
-    private const LOCAL_HOSTS = ['', 'localhost', '127.0.0.1', '::1'];
+    private const LOCAL_HOSTS = ['', 'localhost'];
 
     /**
      * Managed database services, by the end of their host names.
@@ -22,6 +22,7 @@ final class Database
         '.db.ondigitalocean.com' => 'DigitalOcean',
         '.laravel.cloud' => 'Laravel Cloud',
         '.database.azure.com' => 'Azure',
+        '.database.windows.net' => 'Azure',
         '.psdb.cloud' => 'PlanetScale',
         '.neon.tech' => 'Neon',
         '.supabase.co' => 'Supabase',
@@ -64,7 +65,7 @@ final class Database
             'engine' => $engine,
             'version' => self::version($serverVersion),
             // A Cloud SQL socket is only a proxy to Google's servers.
-            'local' => $host === null ? null : $managed === null && (in_array($host, self::LOCAL_HOSTS, true) || $host[0] === '/'),
+            'local' => $host === null ? null : $managed === null && self::local($host),
             'managed' => $managed,
         ];
     }
@@ -87,7 +88,8 @@ final class Database
             return null;
         }
 
-        return substr($m[1], 0, self::MAX_VERSION);
+        // Cutting it short can leave a trailing dot.
+        return rtrim(substr($m[1], 0, self::MAX_VERSION), '.');
     }
 
     /**
@@ -110,6 +112,30 @@ final class Database
 
         // One colon is a port; more is a bare IPv6 address.
         return substr_count($host, ':') === 1 ? (string) preg_replace('/:\d*$/', '', $host) : $host;
+    }
+
+    /**
+     * The driver's default, localhost, a unix socket, or a loopback
+     * address: anything in 127.0.0.0/8, or ::1 however it's written.
+     */
+    private static function local(string $host): bool
+    {
+        if (in_array($host, self::LOCAL_HOSTS, true) || $host[0] === '/') {
+            return true;
+        }
+
+        $ip = @inet_pton($host);
+
+        if ($ip === false) {
+            return false;
+        }
+
+        // An IPv4-mapped IPv6 address (::ffff:127.0.0.1) is the IPv4 one.
+        if (strlen($ip) === 16 && str_starts_with($ip, str_repeat("\0", 10)."\xff\xff")) {
+            $ip = substr($ip, 12);
+        }
+
+        return strlen($ip) === 4 ? $ip[0] === "\x7f" : $ip === inet_pton('::1');
     }
 
     private static function managed(string $host): ?string

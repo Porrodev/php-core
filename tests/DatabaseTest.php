@@ -40,6 +40,14 @@ it('says whether the database is on the same machine', function (?string $host, 
     'IPv4 loopback with a port' => ['127.0.0.1:3306', true],
     'IPv6 loopback' => ['::1', true],
     'IPv6 loopback in brackets' => ['[::1]:3306', true],
+    'another IPv4 loopback address' => ['127.0.1.1', true],
+    'the end of 127.0.0.0/8' => ['127.255.255.254', true],
+    'IPv6 loopback written out' => ['0:0:0:0:0:0:0:1', true],
+    'IPv6 loopback with leading zeros' => ['[0000:0000:0000:0000:0000:0000:0000:0001]:5432', true],
+    'IPv4-mapped loopback' => ['::ffff:127.0.0.1', true],
+    'not quite loopback' => ['128.0.0.1', false],
+    'a host name starting 127' => ['127.example.com', false],
+    'IPv6 unspecified' => ['::', false],
     'a unix socket' => ['/var/run/mysqld/mysqld.sock', true],
     'another server' => ['10.0.0.12', false],
     'a host name' => ['db.example.com', false],
@@ -76,7 +84,7 @@ it('never says where an SQLite database is', function () {
 it('reads SQL Server hosts', function () {
     expect(Database::describe('sqlsrv', '16.00.4135', 'tcp:sql.example.com,1433'))
         ->toBe(['engine' => 'sqlsrv', 'version' => '16.00.4135', 'local' => false, 'managed' => null])
-        ->and(Database::describe('sqlsrv', '16.00.4135', 'porro.database.windows.net')['managed'])->toBeNull();
+        ->and(Database::describe('sqlsrv', '16.00.4135', 'tcp:porro.database.windows.net,1433'))->toMatchArray(['local' => false, 'managed' => 'Azure']);
 });
 
 it('gives null for a driver it doesn’t know', function () {
@@ -85,7 +93,9 @@ it('gives null for a driver it doesn’t know', function () {
 });
 
 it('keeps versions to 50 characters', function () {
-    expect(Database::describe('mysql', str_repeat('1.', 40).'1', '')['version'])->toHaveLength(50);
+    expect(Database::describe('mysql', str_repeat('1.', 40).'1', '')['version'])->toHaveLength(49)
+        ->not->toEndWith('.')
+        ->and(Database::describe('mysql', str_repeat('12.', 30).'1', '')['version'])->toHaveLength(50);
 });
 
 it('never sends the host', function () {
