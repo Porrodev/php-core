@@ -21,9 +21,9 @@ function siteKey(): array
 /**
  * @param  array<string, string>  $headers
  */
-function signatureIsValid(array $headers, string $body, string $publicKey): bool
+function signatureIsValid(array $headers, string $body, string $publicKey, string $method = 'POST', string $path = '/api/v1/reports'): bool
 {
-    $message = $headers['X-Porro-Timestamp']."\n".$headers['X-Porro-Nonce']."\n".hash('sha256', $body);
+    $message = "connector-v1\n{$method}\n{$path}\n".$headers['X-Porro-Timestamp']."\n".$headers['X-Porro-Nonce']."\n".hash('sha256', $body);
 
     return sodium_crypto_sign_verify_detached(base64_decode($headers['X-Porro-Signature']), $message, $publicKey);
 }

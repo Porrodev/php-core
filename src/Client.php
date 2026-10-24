@@ -45,7 +45,7 @@ final class Client
         $attempt = 0;
 
         while (true) {
-            $headers = $this->key->headers($body) + [
+            $headers = $this->key->headers($body, null, 'POST', '/api/v1/reports') + [
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'User-Agent' => 'porro-connector/'.(Report::installedVersion('porro/php-core') ?? 'dev'),

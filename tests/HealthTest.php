@@ -239,6 +239,32 @@ describe('report checks', function () {
     });
 });
 
+describe('sources', function () {
+    it('treats a response over the size limit as a failure', function () {
+        $calls = [];
+        $cache = [];
+        $limits = [];
+        $sources = new Sources(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache) {
+                $cache[$key] = $value;
+            },
+            function (string $method, string $url, array $headers, ?string $body, int $timeout, int $maxBytes) use (&$limits) {
+                $limits[] = $maxBytes;
+
+                return [200, json_encode(['data' => str_repeat('a', $url === 'https://big.test' ? 2000 : 10)])];
+            },
+            maxBytes: 1000,
+        );
+
+        expect($sources->json('GET', 'https://big.test'))->toBeNull()
+            ->and($sources->json('GET', 'https://small.test'))->toBe(['data' => str_repeat('a', 10)])
+            ->and($limits)->toBe([1000, 1000]);
+    });
+});
+
 describe('porro findings', function () {
     it('reads findings with a signed request and caches them', function () {
         $key = siteKey();
@@ -259,7 +285,7 @@ describe('porro findings', function () {
         $findings->fetch();
 
         expect($calls)->toHaveCount(1)
-            ->and(signatureIsValid($calls[0]['headers'], '', $key['public']))->toBeTrue()
+            ->and(signatureIsValid($calls[0]['headers'], '', $key['public'], 'GET', '/api/v1/findings'))->toBeTrue()
             ->and($result['ok'])->toBeTrue()
             ->and($result['site_url'])->toBe('https://porro.test/acme/sites/example')
             ->and(array_map(fn ($i) => [$i->title, $i->severity, $i->scope, $i->url], $result['findings']))->toBe([
@@ -267,6 +293,39 @@ describe('porro findings', function () {
                 ['Ubuntu 20.04 past security support', Issue::CRITICAL, 'server', null],
                 ['SSL expires in 9 days', Issue::WARNING, 'site', 'https://porro.test/acme/sites/example'],
             ]);
+    });
+
+    it('caches per Porro and per key', function () {
+        $key = siteKey();
+        $calls = [];
+        $cache = [];
+        $response = [200, json_encode(['ok' => true, 'site' => ['url' => null], 'findings' => []])];
+        $sources = fakeSources(['GET https://porro.test/api/v1/findings' => $response, 'GET https://staging.porro.test/api/v1/findings' => $response], $calls, $cache);
+
+        (new PorroFindings($sources, SiteKey::parse($key['token']), 'https://porro.test'))->fetch();
+        (new PorroFindings($sources, SiteKey::parse($key['token']), 'https://porro.test/'))->fetch();
+        (new PorroFindings($sources, SiteKey::parse($key['token']), 'https://staging.porro.test'))->fetch();
+        // A new key for the same site.
+        (new PorroFindings($sources, SiteKey::parse(siteKey()['token']), 'https://porro.test'))->fetch();
+
+        expect(array_column($calls, 'url'))->toBe([
+            'https://porro.test/api/v1/findings',
+            'https://staging.porro.test/api/v1/findings',
+            'https://porro.test/api/v1/findings',
+        ]);
+    });
+
+    it('forgets its own cache entry', function () {
+        $calls = [];
+        $cache = [];
+        $sources = fakeSources(['GET https://porro.test/api/v1/findings' => [200, json_encode(['ok' => true, 'findings' => []])]], $calls, $cache);
+        $findings = new PorroFindings($sources, SiteKey::parse(siteKey()['token']), 'https://porro.test');
+
+        $findings->fetch();
+        $findings->forget();
+        $findings->fetch();
+
+        expect($calls)->toHaveCount(2);
     });
 
     it('reports when Porro can’t be reached', function () {
@@ -301,7 +360,7 @@ describe('site health', function () {
                 ['kind' => 'debug_mode', 'rank' => 2, 'title' => 'Debug mode on in production', 'scope' => 'site'],
             ]])],
         ])))
-            ->report(['platform' => ['name' => 'laravel', 'environment' => 'production'], 'health' => ['debug' => true, 'pending_migrations' => 1]])
+            ->report(['platform' => ['name' => 'laravel', 'environment' => 'production'], 'health' => ['debug' => true]])
             ->add(new Issue('cms_update', Issue::NOTICE, 'Statamic 6.3 is available'))
             ->toArray(SiteKey::parse($key['token']), 'https://porro.test');
 
@@ -309,6 +368,19 @@ describe('site health', function () {
             ->and(array_column($health['issues'], 'title'))->toBe(['Statamic 6.3 is available'])
             ->and(array_column($health['porro']['findings'], 'title'))->toBe(['Debug mode on in production'])
             ->and($health['counts'])->toBe(['critical' => 1, 'warning' => 0, 'notice' => 1]);
+    });
+
+    it('keeps local issues Porro hasn’t raised, even of kinds it covers', function () {
+        $health = (new SiteHealth(fakeSources([
+            'GET https://porro.test/api/v1/findings' => [200, json_encode(['ok' => true, 'site' => ['url' => null], 'findings' => [
+                ['kind' => 'debug_mode', 'rank' => 2, 'title' => 'Debug mode on in production', 'scope' => 'site'],
+            ]])],
+        ])))
+            ->report(['platform' => ['name' => 'laravel', 'environment' => 'production'], 'health' => ['debug' => true, 'pending_migrations' => 1]])
+            ->toArray(SiteKey::parse(siteKey()['token']), 'https://porro.test');
+
+        expect(array_column($health['issues'], 'kind'))->toBe(['pending_migrations'])
+            ->and(array_column($health['porro']['findings'], 'kind'))->toBe(['debug_mode']);
     });
 
     it('keeps every local issue when Porro can’t be reached', function () {

@@ -11,21 +11,28 @@ use Throwable;
  * through the connector's own cache, so a control panel page only waits
  * on the network once in a while. Failures are cached briefly too, so an
  * unreachable API never slows every page down.
+ *
+ * Responses over MAX_BYTES count as failures. The $http closure gets the
+ * limit as its last argument, so it can stop reading there.
  */
 final class Sources
 {
     public const FAILURE_TTL = 600;
 
+    /** Packagist's metadata for laravel/framework is about 1MB. */
+    public const MAX_BYTES = 5_242_880;
+
     /**
      * @param  Closure(string $key): mixed  $get
      * @param  Closure(string $key, mixed $value, int $ttl): mixed  $put
-     * @param  (Closure(string $method, string $url, array<string, string> $headers, string|null $body, int $timeout): array{0: int, 1: string})|null  $http
+     * @param  (Closure(string $method, string $url, array<string, string> $headers, string|null $body, int $timeout, int $maxBytes): array{0: int, 1: string})|null  $http
      */
     public function __construct(
         private readonly Closure $get,
         private readonly Closure $put,
         private readonly ?Closure $http = null,
         private readonly int $timeout = 5,
+        private readonly int $maxBytes = self::MAX_BYTES,
     ) {}
 
     /**
@@ -92,12 +99,12 @@ final class Sources
         ];
 
         try {
-            [$status, $response] = ($this->http ?? Closure::fromCallable([$this, 'request']))($method, $url, $headers, $body, $this->timeout);
+            [$status, $response] = ($this->http ?? Closure::fromCallable([$this, 'request']))($method, $url, $headers, $body, $this->timeout, $this->maxBytes);
         } catch (Throwable) {
             return null;
         }
 
-        if ($status < 200 || $status >= 300) {
+        if ($status < 200 || $status >= 300 || strlen($response) > $this->maxBytes) {
             return null;
         }
 
@@ -110,7 +117,7 @@ final class Sources
      * @param  array<string, string>  $headers
      * @return array{0: int, 1: string}
      */
-    private function request(string $method, string $url, array $headers, ?string $body, int $timeout): array
+    private function request(string $method, string $url, array $headers, ?string $body, int $timeout, int $maxBytes): array
     {
         $context = stream_context_create(['http' => array_filter([
             'method' => $method,
@@ -120,7 +127,8 @@ final class Sources
             'ignore_errors' => true,
         ], fn ($value) => $value !== null)]);
 
-        $response = @file_get_contents($url, false, $context);
+        // One byte over the limit is enough to know it's too big.
+        $response = @file_get_contents($url, false, $context, 0, $maxBytes + 1);
 
         if ($response === false) {
             return [0, ''];

@@ -15,6 +15,8 @@ final class PorroFindings
 {
     public const TTL = 300;
 
+    public const PATH = '/api/v1/findings';
+
     public function __construct(
         private readonly Sources $sources,
         private readonly SiteKey $key,
@@ -26,11 +28,12 @@ final class PorroFindings
      */
     public function fetch(): array
     {
-        $data = $this->sources->remember('porro:'.$this->key->siteId, self::TTL, function () {
-            $url = rtrim($this->baseUrl, '/').'/api/v1/findings';
-            // A GET has no body; the signature covers the empty one, and
-            // the nonce and timestamp keep it from being replayed.
-            $data = $this->sources->json('GET', $url, $this->key->headers(''));
+        $data = $this->sources->remember($this->cacheKey(), self::TTL, function () {
+            $url = rtrim($this->baseUrl, '/').self::PATH;
+            // A GET has no body; the signature covers the empty one, the
+            // method and the path, and the nonce and timestamp keep it
+            // from being replayed.
+            $data = $this->sources->json('GET', $url, $this->key->headers('', null, 'GET', self::PATH));
 
             return is_array($data) && ($data['ok'] ?? false) === true && is_array($data['findings'] ?? null) ? $data : null;
         });
@@ -69,7 +72,16 @@ final class PorroFindings
 
     public function forget(): void
     {
-        $this->sources->forget('porro:'.$this->key->siteId);
+        $this->sources->forget($this->cacheKey());
+    }
+
+    /**
+     * Per Porro and per key, so pointing the site at another Porro or
+     * giving it a new key never shows the old answer.
+     */
+    private function cacheKey(): string
+    {
+        return 'porro:'.$this->key->siteId.':'.substr(hash('sha256', rtrim($this->baseUrl, '/')."\n".$this->key->id()), 0, 16);
     }
 
     /**
