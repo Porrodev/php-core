@@ -191,6 +191,19 @@ final class Report
     }
 
     /**
+     * The database server, from Database::describe(). Null says it
+     * couldn't be read.
+     *
+     * @param  array{engine: string, version: string|null, local: bool|null, managed: string|null}|null  $database
+     */
+    public function database(?array $database): self
+    {
+        $this->data['database'] = $database;
+
+        return $this;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
