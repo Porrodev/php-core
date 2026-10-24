@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased (0.2.1)
+## 0.2.1
 
+- Signatures now cover the method and path (`connector-v1\n{METHOD}\n{path}\n{timestamp}\n{nonce}\n{sha256 of body}`), so a report's signature can't be used to read findings or the other way round. `SiteKey::headers()` takes the method and path; it defaults to `POST /api/v1/reports`. Porro still accepts the old signature for reports, but reading findings needs this version.
+- Site health only leaves out a local issue when Porro has an open finding of the same kind, rather than every kind Porro could raise.
+- `PorroFindings` caches per Porro URL and key (`SiteKey::id()`), so changing either never shows the old answer.
+- `Sources` treats responses over 5MB (`Sources::MAX_BYTES`) as failures and passes the limit to the HTTP closure, so it can stop reading.
+- Advisory titles are shortened without needing `ext-mbstring`.
+- `EndOfLife::forget()`, `Advisories::forget()` and `Updates::forget()`, for a "check again" that fetches everything again.
+- `PorroFindings` skips findings that aren't plain values instead of failing on them.
 - `Porro\Core\Database::describe()` and `Report::database()`: the site's database engine, version, whether it's on the same machine and whether it's a known managed service, so Porro can flag an end-of-life MySQL, MariaDB or PostgreSQL. The host, database name, user and credentials are never sent.
 
 ## 0.2.0 - 2026-10-23

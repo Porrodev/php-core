@@ -11,15 +11,15 @@ You don't install this directly. It comes with a connector:
 | [`porro/statamic-connector`](https://github.com/Porrodev/statamic-connector) | Statamic 5–6 |
 | [`porro/craft-connector`](https://github.com/Porrodev/craft-connector) | Craft 4–5 |
 
-## How reports are signed
+## How requests are signed
 
-A site key looks like `porro_{site id}_{seed}`. The seed is the private half of an Ed25519 key pair; Porro stores only the public half. Each report is signed over:
+A site key looks like `porro_{site id}_{seed}`. The seed is the private half of an Ed25519 key pair; Porro stores only the public half. Each request to Porro (a report, or reading findings) is signed over:
 
 ```
-{timestamp}\n{nonce}\n{sha256 of body}
+connector-v1\n{METHOD}\n{path}\n{timestamp}\n{nonce}\n{sha256 of body}
 ```
 
-and sent with `X-Porro-Site`, `X-Porro-Timestamp`, `X-Porro-Nonce` and `X-Porro-Signature` headers. Porro rejects a report outside a 5-minute window or if it has seen the nonce before. If `ext-sodium` isn't available, `paragonie/sodium_compat` provides it in pure PHP.
+for example `connector-v1\nPOST\n/api/v1/reports\n…`, so a signature only works for the endpoint it was made for. It's sent with `X-Porro-Site`, `X-Porro-Timestamp`, `X-Porro-Nonce` and `X-Porro-Signature` headers. Porro rejects a request outside a 5-minute window or if it has seen the nonce before. Before 0.2.1 the signature was over `{timestamp}\n{nonce}\n{sha256 of body}` alone; Porro still accepts that for reports for now, but not for findings. If `ext-sodium` isn't available, `paragonie/sodium_compat` provides it in pure PHP.
 
 ## What a report says about the server
 
@@ -44,7 +44,7 @@ These are plain file reads, with no `exec`. Anything the PHP process can't read,
 - `Advisories`: known security advisories for the packages in `composer.lock`, from [Packagist's security advisories API](https://packagist.org/apidoc#list-security-advisories) (the one `composer audit` uses). Only package names are sent; versions are matched on the site with `composer/semver`. High and critical advisories rank like Porro's "Act now"; low and medium ones, and anything in a dev dependency, as notices.
 - `Updates`: the newest release of a few key packages on the major version the site runs, from Packagist.
 - `ReportChecks`: debug mode in production, failed jobs, pending migrations, a stuck queue, stale backups, failing health checks and whether cron runs, from what the connector already collects. The same rules Porro runs on each report.
-- `PorroFindings`: once connected, the site's open findings in Porro and its server's, read from `GET /api/v1/findings` with a request signed by the site key (over an empty body).
+- `PorroFindings`: once connected, the site's open findings in Porro and its server's, read from `GET /api/v1/findings` with a request signed by the site key (over an empty body), cached for five minutes per Porro URL and key. Local issues are only left out when Porro has an open finding of the same kind.
 - `SiteHealth` puts them together for the panel, leaving out local issues Porro already raises once its findings are in.
 
 Network results go through the connector's own cache via `Sources` (failures for ten minutes), so a control panel page rarely waits on the network and an unreachable API never slows every page.

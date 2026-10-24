@@ -19,8 +19,10 @@ use Throwable;
 final class SiteHealth
 {
     /**
-     * Kinds Porro also raises from the connector's reports. When Porro's
-     * findings are in, these local ones are left out so nothing shows twice.
+     * Kinds Porro also raises from the connector's reports. When Porro has
+     * an open finding of one of these kinds, the local one is left out so
+     * it doesn't show twice. Porro may not have raised it yet (the report
+     * hasn't been sent) or may have snoozed it, so the rest stay.
      */
     public const PORRO_COVERS = [
         'advisory', 'advisory_low', 'debug_mode', 'unsupported_php', 'unsupported_platform',
@@ -155,7 +157,8 @@ final class SiteHealth
         $issues = $this->issues;
 
         if ($porro['ok'] ?? false) {
-            $issues = array_values(array_filter($issues, fn (Issue $issue) => ! in_array($issue->kind, self::PORRO_COVERS, true)));
+            $raised = array_map(fn (Issue $finding) => $finding->kind, $porro['findings']);
+            $issues = array_values(array_filter($issues, fn (Issue $issue) => ! (in_array($issue->kind, self::PORRO_COVERS, true) && in_array($issue->kind, $raised, true))));
         }
 
         $issues = Issue::sort($issues);

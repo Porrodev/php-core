@@ -104,12 +104,33 @@ final class Advisories
             ($count === 1 ? "{$label} advisory in {$package['name']}" : "{$count} advisories in {$package['name']}").($package['dev'] ? ' · dev dependency' : ''),
             implode(' · ', array_filter([
                 "Installed {$package['version']}",
-                mb_substr(($count === 1 ? '' : "worst {$label}: ").(string) ($worst['title'] ?? ''), 0, 140),
+                self::truncate(($count === 1 ? '' : "worst {$label}: ").(string) ($worst['title'] ?? ''), 140),
                 implode(', ', $cves),
             ])),
             "composer update {$package['name']}",
             // Only web links become links in the control panel.
             is_string($worst['link'] ?? null) && preg_match('#^https?://#i', $worst['link']) ? $worst['link'] : null,
         );
+    }
+
+    /**
+     * The first $length characters, without needing mbstring.
+     */
+    private static function truncate(string $text, int $length): string
+    {
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, $length);
+        }
+
+        return preg_match('/^.{0,'.$length.'}/su', $text, $m) ? $m[0] : substr($text, 0, $length);
+    }
+
+    /**
+     * Forgets the cached advisories for this lock file, e.g. after a
+     * "check again".
+     */
+    public function forget(LockFile $lock): void
+    {
+        $this->sources->forget('advisories:'.$lock->hash);
     }
 }

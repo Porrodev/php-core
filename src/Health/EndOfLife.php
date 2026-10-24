@@ -157,4 +157,13 @@ final class EndOfLife
 
         return $products ??= (array) (json_decode((string) @file_get_contents(__DIR__.'/../../data/endoflife.json'), true)['products'] ?? []);
     }
+
+    /**
+     * Forgets the cached support dates for a product (an EndOfLife::PRODUCTS
+     * key), e.g. after a "check again".
+     */
+    public function forget(string $product): void
+    {
+        $this->sources->forget('eol:'.(self::PRODUCTS[$product][0] ?? $product));
+    }
 }

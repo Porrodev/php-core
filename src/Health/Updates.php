@@ -102,4 +102,12 @@ final class Updates
 
         return $newest;
     }
+
+    /**
+     * Forgets a package's cached releases, e.g. after a "check again".
+     */
+    public function forget(string $package): void
+    {
+        $this->sources->forget('releases:'.$package);
+    }
 }
