@@ -71,6 +71,14 @@ Network results go through the connector's own cache via `Sources` (failures for
 - `Countries`: a rough country for each flagged IP.
   - Behind Cloudflare it uses the `CF-IPCountry` header the request already carries (`ClientIp::country()`), so there's no lookup at all.
   - Elsewhere it reads [DB-IP's free country file](https://db-ip.com/db/download/ip-to-country-lite) on the site: about 4MB, downloaded monthly by `update()`, CC BY 4.0. Panels showing these countries must credit DB-IP (`Countries::ATTRIBUTION`).
+- `Cloudflare`: blocking at Cloudflare's edge.
+  - `connect($host)` finds the zone serving the site (walking up from a subdomain) and finds or creates the account's `porro_blocklist` IP List. It then adds one custom rule, `ip.src in $porro_blocklist`, next to the zone's existing rules, never by replacing the phase's ruleset.
+  - `sync()` adds and removes only items whose comment starts `porro:{site id}:`, and waits for Cloudflare's background operations to finish.
+    - The list is account-wide, so other sites' items are left alone.
+    - An IP another site already added counts as blocked.
+    - Nothing ever replaces the whole list.
+  - `disconnect()` removes this site's items and rule. It deletes the list only once it's empty.
+  - **Token permissions:** Account Filter Lists Edit, Zone WAF Edit, Zone Read.
 - `NginxBlocklist`: renders the `deny` file for nginx, plus the Cloudflare real-IP lines that must come before it. It writes the file atomically and only when the list changed.
 
 ## What a report says about the database
