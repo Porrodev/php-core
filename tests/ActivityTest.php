@@ -180,6 +180,61 @@ describe('protected ranges', function () {
             ->and(ProtectedRanges::parseList("1.2.3.4\n<html>"))->toBeNull();
     });
 
+    it('protects Google’s and Bing’s verified crawlers, from the bundled lists or fetched ones', function () {
+        $ranges = new ProtectedRanges;
+
+        expect($ranges->match('66.249.66.1'))->toBe(ProtectedRanges::CRAWLERS)
+            ->and($ranges->match('157.55.39.10'))->toBe(ProtectedRanges::CRAWLERS)
+            // Google Cloud is rentable by anyone: not protected.
+            ->and($ranges->match('34.120.0.1'))->toBeNull();
+
+        $google = json_encode(['creationTime' => 'x', 'prefixes' => [['ipv4Prefix' => '66.249.64.0/27'], ['ipv6Prefix' => '2001:4860:4801:10::/64']]]);
+        $bing = json_encode(['prefixes' => [['ipv4Prefix' => '157.55.39.0/24']]]);
+        $fetched = new ProtectedRanges(activitySources([
+            'GET '.ProtectedRanges::JSON_URLS[ProtectedRanges::CRAWLERS][0] => [200, $google],
+            'GET '.ProtectedRanges::JSON_URLS[ProtectedRanges::CRAWLERS][1] => [200, $bing],
+        ]));
+
+        expect($fetched->match('66.249.64.10'))->toBe(ProtectedRanges::CRAWLERS)
+            ->and($fetched->match('66.249.66.1'))->toBeNull()
+            ->and($fetched->match('2001:4860:4801:10::5'))->toBe(ProtectedRanges::CRAWLERS);
+
+        expect(fn () => (new Blocklist(memoryStore(), memoryStore(), $ranges))->block('66.249.66.1', 'x'))->toThrow(Refused::class);
+    });
+
+    it('keeps the bundled crawlers when a list changes shape or can’t be fetched', function () {
+        $ranges = new ProtectedRanges(activitySources([
+            'GET '.ProtectedRanges::JSON_URLS[ProtectedRanges::CRAWLERS][0] => [200, '{"prefixes":[{"ipv4Prefix":"66.249.64.0/27"},{"ipv4Prefix":"not an ip"}]}'],
+            'GET '.ProtectedRanges::JSON_URLS[ProtectedRanges::CRAWLERS][1] => [500, ''],
+        ]));
+
+        expect($ranges->match('66.249.66.1'))->toBe(ProtectedRanges::CRAWLERS)
+            ->and(ProtectedRanges::parsePrefixes('<html>'))->toBeNull()
+            ->and(ProtectedRanges::parsePrefixes('{"prefixes":[]}'))->toBeNull()
+            ->and(ProtectedRanges::parsePrefixes('{"prefixes":[{"ipv4Prefix":"1.2.3.0/24"},{"ipv6Prefix":"2001:db8::/32"}]}'))->toBe(['1.2.3.0/24', '2001:db8::/32']);
+    });
+
+    it('lets a site switch off Forge and the crawlers, but never Cloudflare or private ranges', function () {
+        $ranges = new ProtectedRanges(null, [], [ProtectedRanges::CRAWLERS, ProtectedRanges::FORGE, ProtectedRanges::CLOUDFLARE, ProtectedRanges::RESERVED]);
+
+        expect($ranges->match('66.249.66.1'))->toBeNull()
+            ->and($ranges->match('159.203.150.232'))->toBeNull()
+            ->and($ranges->match('104.16.1.1'))->toBe(ProtectedRanges::CLOUDFLARE)
+            ->and($ranges->match('10.0.0.1'))->toBe(ProtectedRanges::RESERVED)
+            ->and($ranges->off())->toBe([ProtectedRanges::CRAWLERS, ProtectedRanges::FORGE]);
+    });
+
+    it('explains every list, with its source and whether it can be switched off', function () {
+        $about = array_column((new ProtectedRanges(null, ['81.2.69.0/24'], [ProtectedRanges::FORGE]))->about(), null, 'source');
+
+        expect(array_keys($about))->toBe(array_keys(ProtectedRanges::LABELS))
+            ->and($about[ProtectedRanges::CRAWLERS]['why'])->toContain('drop the site from search')
+            ->and($about[ProtectedRanges::CRAWLERS]['from'])->toHaveCount(2)
+            ->and($about[ProtectedRanges::RESERVED])->toMatchArray(['optional' => false, 'on' => true])
+            ->and($about[ProtectedRanges::FORGE])->toMatchArray(['optional' => true, 'on' => false, 'ranges' => []])
+            ->and($about[ProtectedRanges::CONFIG]['ranges'])->toBe(['81.2.69.0/24']);
+    });
+
     it('adds the site’s own ranges from config', function () {
         expect((new ProtectedRanges(null, ['81.2.69.0/24']))->match('81.2.69.142'))->toBe(ProtectedRanges::CONFIG);
     });
