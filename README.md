@@ -68,6 +68,9 @@ Network results go through the connector's own cache via `Sources` (failures for
   - It refuses blocks that would break the site: protected ranges, the admin's own IP, anything safelisted, ranges wider than /16 (IPv4) or /48 (IPv6), and more than 5,000 entries.
   - `prune()` drops expired entries and blocks that have since become protected or safelisted.
   - Connectors store entries through `EntryStore`, a database table, so every server of a site sees the same list.
+- `Countries`: a rough country for each flagged IP.
+  - Behind Cloudflare it uses the `CF-IPCountry` header the request already carries (`ClientIp::country()`), so there's no lookup at all.
+  - Elsewhere it reads [DB-IP's free country file](https://db-ip.com/db/download/ip-to-country-lite) on the site: about 4MB, downloaded monthly by `update()`, CC BY 4.0. Panels showing these countries must credit DB-IP (`Countries::ATTRIBUTION`).
 - `NginxBlocklist`: renders the `deny` file for nginx, plus the Cloudflare real-IP lines that must come before it. It writes the file atomically and only when the list changed.
 
 ## What a report says about the database

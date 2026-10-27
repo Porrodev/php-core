@@ -29,4 +29,25 @@ final class ClientIp
 
         return $frameworkIp;
     }
+
+    /**
+     * The visitor's country when Cloudflare sent the request, from its
+     * CF-IPCountry header: free, no lookup. Null otherwise.
+     *
+     * @param  array<string, string|list<string>>  $headers  any case
+     */
+    public static function country(string $frameworkIp, array $headers, ProtectedRanges $ranges): ?string
+    {
+        if (! $ranges->isCloudflare($frameworkIp)) {
+            return null;
+        }
+
+        foreach ($headers as $name => $value) {
+            if (strtolower($name) === 'cf-ipcountry') {
+                return Recorder::country(is_array($value) ? (string) ($value[0] ?? '') : $value);
+            }
+        }
+
+        return null;
+    }
 }

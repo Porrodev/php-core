@@ -3,8 +3,10 @@
 use Porro\Core\Activity\Blocklist;
 use Porro\Core\Activity\Cidr;
 use Porro\Core\Activity\ClientIp;
+use Porro\Core\Activity\Countries;
 use Porro\Core\Activity\Entry;
 use Porro\Core\Activity\EntryStore;
+use Porro\Core\Activity\FlaggedIp;
 use Porro\Core\Activity\IpSet;
 use Porro\Core\Activity\NginxBlocklist;
 use Porro\Core\Activity\Probes;
@@ -609,3 +611,67 @@ function activitySources(array $responses): Sources
         fn (string $method, string $url) => $responses["{$method} {$url}"] ?? [0, ''],
     );
 }
+
+describe('countries', function () {
+    it('keeps the country Cloudflare sent with each request', function () {
+        $recorder = recorder($cache);
+
+        for ($i = 0; $i < 3; $i++) {
+            $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', '/.env', 404, at: ACTIVITY_NOW + $i, country: $i === 2 ? 't1' : 'DE');
+        }
+
+        expect($recorder->summary(24, ACTIVITY_NOW + 60)->flagged[0]->country)->toBe('T1');
+    });
+
+    it('normalises country codes, dropping unknowns', function (?string $in, ?string $out) {
+        expect(Recorder::country($in))->toBe($out);
+    })->with([['de', 'DE'], [' GB ', 'GB'], ['T1', 'T1'], ['XX', null], ['', null], [null, null], ['Germany', null]]);
+
+    it('reads CF-IPCountry only from Cloudflare', function () {
+        $ranges = new ProtectedRanges;
+
+        expect(ClientIp::country('104.16.1.1', ['CF-IPCountry' => 'nl'], $ranges))->toBe('NL')
+            ->and(ClientIp::country('45.148.10.92', ['CF-IPCountry' => 'NL'], $ranges))->toBeNull()
+            ->and(ClientIp::country('104.16.1.1', [], $ranges))->toBeNull();
+    });
+
+    it('looks nothing up without a country file', function () {
+        $countries = new Countries(sys_get_temp_dir().'/porro-countries-'.bin2hex(random_bytes(4)));
+        $flagged = [new FlaggedIp('185.220.101.4', [], 0, 'GET', '/', 404, 0, [], [], 5, 'DE'), new FlaggedIp('45.148.10.92', [], 0, 'GET', '/', 404, 0, [], [], 5)];
+
+        expect($countries->available())->toBeFalse()
+            ->and($countries->lookup('185.220.101.4'))->toBeNull()
+            ->and(array_map(fn ($ip) => $ip->country, $countries->fill($flagged)))->toBe(['DE', null]);
+    });
+
+    it('keeps no file when the download isn’t a country database', function () {
+        $dir = sys_get_temp_dir().'/porro-countries-'.bin2hex(random_bytes(4));
+        $countries = new Countries($dir);
+        $urls = [];
+
+        $updated = $countries->update(function (string $url, string $to) use (&$urls) {
+            $urls[] = $url;
+
+            return (bool) file_put_contents($to, gzencode('<html>not a database</html>'));
+        }, ACTIVITY_NOW);
+
+        expect($updated)->toBeFalse()
+            ->and($countries->available())->toBeFalse()
+            ->and($urls[0])->toBe('https://download.db-ip.com/free/dbip-country-lite-'.gmdate('Y-m', ACTIVITY_NOW).'.mmdb.gz')
+            ->and(glob($dir.'/*'))->toBe([]);
+    });
+
+    it('tries last month’s file when this month’s isn’t up yet', function () {
+        $urls = [];
+        (new Countries(sys_get_temp_dir().'/porro-countries-'.bin2hex(random_bytes(4))))->update(function (string $url) use (&$urls) {
+            $urls[] = $url;
+
+            return false;
+        }, gmmktime(0, 30, 0, 11, 1, 2026));
+
+        expect($urls)->toBe([
+            'https://download.db-ip.com/free/dbip-country-lite-2026-11.mmdb.gz',
+            'https://download.db-ip.com/free/dbip-country-lite-2026-10.mmdb.gz',
+        ]);
+    });
+});

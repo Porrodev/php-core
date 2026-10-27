@@ -8,7 +8,9 @@
   - `Recorder` counts suspicious requests in the cache and summarises them. Its issues are `exposed_file`, `suspicious_activity` and `client_ip_unknown`.
   - `ProtectedRanges` covers Cloudflare, Forge and its health checks, and reserved ranges, fetched daily with a bundled fallback.
   - `Blocklist` holds the blocklist and safelist and enforces the safety rules, through an `EntryStore` the connector provides.
+  - `Countries` gives a rough country for flagged IPs. It uses Cloudflare's `CF-IPCountry` when present, otherwise DB-IP's free country file read on the site. `Recorder::record()` takes the country Cloudflare sent.
   - `NginxBlocklist` renders the nginx deny file and real-IP lines.
+- Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.
 
 ## 0.2.1

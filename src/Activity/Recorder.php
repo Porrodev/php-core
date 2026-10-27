@@ -78,7 +78,10 @@ final class Recorder
         $this->thresholds = $thresholds + self::THRESHOLDS;
     }
 
-    public function record(string $ip, string $signal, string $method, string $path, int $status, ?string $username = null, ?int $at = null): void
+    /**
+     * @param  string|null  $country  two-letter code the edge already knows, e.g. Cloudflare's CF-IPCountry
+     */
+    public function record(string $ip, string $signal, string $method, string $path, int $status, ?string $username = null, ?int $at = null, ?string $country = null): void
     {
         if (! in_array($signal, self::SIGNALS, true) || filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return;
@@ -106,7 +109,7 @@ final class Recorder
                 return;
             }
 
-            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at);
+            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country));
         } catch (Throwable) {
             // Fail open.
         }
@@ -172,6 +175,7 @@ final class Recorder
                     lastPath: $data['p'],
                     lastStatus: $data['st'],
                     lastSeen: $data['t'],
+                    country: $data['cc'],
                     recent: array_slice($data['r'], 0, self::RECENT_CAP),
                     hourly: $data['h'],
                     score: $this->score($data['c']),
@@ -192,6 +196,17 @@ final class Recorder
             exposed: $this->read('exposed'),
             targets: array_map('count', $targets),
         );
+    }
+
+    /**
+     * A two-letter country code, upper case, or null. Keeps Cloudflare's
+     * T1 (Tor); drops XX (unknown).
+     */
+    public static function country(?string $code): ?string
+    {
+        $code = strtoupper(trim((string) $code));
+
+        return preg_match('/^[A-Z][A-Z0-9]$/', $code) && $code !== 'XX' ? $code : null;
     }
 
     /**
@@ -217,7 +232,7 @@ final class Recorder
         return $score;
     }
 
-    private function touch(string $hour, string $ip, string $signal, string $method, string $path, int $status, ?string $username, int $at): void
+    private function touch(string $hour, string $ip, string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country): void
     {
         $key = "{$hour}:ip:{$ip}";
         $record = $this->read($key);
@@ -230,6 +245,10 @@ final class Recorder
         $record['p'] = $path;
         $record['st'] = $status;
         $record['t'] = $at;
+
+        if ($country !== null) {
+            $record['cc'] = $country;
+        }
 
         $recent = $record['r'] ?? [];
         array_unshift($recent, [strtoupper($method), $path, $status, $at]);
@@ -258,7 +277,9 @@ final class Recorder
      */
     private function merge(?array $into, array $record, string $hour): array
     {
-        $into ??= ['c' => array_fill_keys(self::SIGNALS, 0), 'u' => [], 'm' => '', 'p' => '', 'st' => 0, 't' => 0, 'r' => [], 'h' => [], 'flagged' => false];
+        $into ??= ['c' => array_fill_keys(self::SIGNALS, 0), 'u' => [], 'm' => '', 'p' => '', 'st' => 0, 't' => 0, 'cc' => null, 'r' => [], 'h' => [], 'flagged' => false];
+
+        $into['cc'] = $record['cc'] ?? $into['cc'];
 
         foreach ($record['c'] ?? [] as $signal => $n) {
             $into['c'][$signal] = ($into['c'][$signal] ?? 0) + (int) $n;

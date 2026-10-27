@@ -23,7 +23,14 @@ final class FlaggedIp
         public readonly array $recent,
         public readonly array $hourly,
         public readonly int $score,
+        // Two-letter code from the edge (T1 is Cloudflare's Tor), or null.
+        public readonly ?string $country = null,
     ) {}
+
+    public function withCountry(?string $country): self
+    {
+        return new self($this->ip, $this->counts, $this->users, $this->lastMethod, $this->lastPath, $this->lastStatus, $this->lastSeen, $this->recent, $this->hourly, $this->score, $country);
+    }
 
     /**
      * The signals it was seen for, biggest first, without zeros.
@@ -54,6 +61,7 @@ final class FlaggedIp
             'recent' => $this->recent,
             'hourly' => $this->hourly,
             'score' => $this->score,
+            'country' => $this->country,
         ];
     }
 }
