@@ -9,6 +9,7 @@ use Porro\Core\Activity\EntryStore;
 use Porro\Core\Activity\FlaggedIp;
 use Porro\Core\Activity\IpSet;
 use Porro\Core\Activity\NginxBlocklist;
+use Porro\Core\Activity\NginxStatus;
 use Porro\Core\Activity\Probes;
 use Porro\Core\Activity\ProtectedRanges;
 use Porro\Core\Activity\Recorder;
@@ -673,5 +674,56 @@ describe('countries', function () {
             'https://download.db-ip.com/free/dbip-country-lite-2026-11.mmdb.gz',
             'https://download.db-ip.com/free/dbip-country-lite-2026-10.mmdb.gz',
         ]);
+    });
+});
+
+describe('nginx status', function () {
+    beforeEach(function () {
+        $this->dir = sys_get_temp_dir().'/porro-nginx-'.bin2hex(random_bytes(4));
+        mkdir($this->dir.'/sites-enabled', 0755, true);
+        mkdir($this->dir.'/forge-conf/example.com/server', 0755, true);
+        $this->file = $this->dir.'/storage/nginx-blocklist.conf';
+        $this->stamp = $this->dir.'/stamp';
+        $this->dirs = [$this->dir.'/sites-enabled', $this->dir.'/forge-conf'];
+        $this->check = fn () => NginxStatus::check($this->file, $this->stamp, $this->dirs);
+    });
+
+    it('walks through setup, step by step', function () {
+        file_put_contents($this->dir.'/sites-enabled/example.com', "server {\n    listen 443;\n}\n");
+        expect(($this->check)()['state'])->toBe(NginxStatus::NOT_WRITTEN);
+
+        NginxBlocklist::write($this->file, NginxBlocklist::render([new Entry('185.220.101.4', 'x')]));
+        expect(($this->check)()['state'])->toBe(NginxStatus::NOT_INCLUDED);
+
+        file_put_contents($this->dir.'/sites-enabled/example.com', "server {\n    # include {$this->file};\n    real_ip_header CF-Connecting-IP;\n    include {$this->file};\n}\n");
+        expect(($this->check)())->toMatchArray(['state' => NginxStatus::WAITING, 'included' => true, 'real_ip' => true, 'config' => $this->dir.'/sites-enabled/example.com']);
+
+        touch($this->stamp, time() + 5);
+        expect(($this->check)()['state'])->toBe(NginxStatus::LOADED);
+
+        // A new block: waiting for the next reload again.
+        touch($this->file, time() + 10);
+        expect(($this->check)()['state'])->toBe(NginxStatus::WAITING);
+    });
+
+    it('finds the include in Forge’s per-site config, and ignores commented lines', function () {
+        NginxBlocklist::write($this->file, NginxBlocklist::render([]));
+        file_put_contents($this->dir.'/forge-conf/example.com/server/porro.conf', "#include {$this->file};\n");
+        expect(($this->check)()['included'])->toBeFalse();
+
+        file_put_contents($this->dir.'/forge-conf/example.com/server/porro.conf', "include \"{$this->file}\";\n");
+        expect(($this->check)())->toMatchArray(['included' => true, 'real_ip' => false]);
+    });
+
+    it('says when it can’t read the config', function () {
+        NginxBlocklist::write($this->file, NginxBlocklist::render([]));
+        touch($this->stamp, time() + 5);
+
+        expect(NginxStatus::check($this->file, $this->stamp, ['/nonexistent/nginx']))->toMatchArray(['state' => NginxStatus::UNCONFIRMED, 'included' => null]);
+    });
+
+    it('gives the reload job for root’s scheduler', function () {
+        expect(NginxStatus::reloadJob('/home/forge/example.com/storage/porro/nginx-blocklist.conf'))
+            ->toBe('f=/home/forge/example.com/storage/porro/nginx-blocklist.conf; s=/var/tmp/porro-nginx.stamp; [ "$f" -nt "$s" ] && nginx -t -q && systemctl reload nginx && touch "$s"');
     });
 });

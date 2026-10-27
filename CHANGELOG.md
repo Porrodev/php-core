@@ -12,6 +12,10 @@
   - `Cloudflare` blocks at Cloudflare's edge, through one account IP List (`porro_blocklist`) and one custom rule on the zone.
     - Each site syncs only items carrying its own comment prefix, so many sites can share one account's list.
     - The rule is added next to the zone's own custom rules and never replaces them.
+  - `NginxStatus` checks a server's nginx setup by looking, never by running anything.
+    - It reports whether the deny file is written and whether site config includes it, read from `/etc/nginx/sites-enabled`, `conf.d` and `forge-conf`.
+    - It also reports whether the reload job has reloaded nginx since the last change.
+    - `reloadJob()` gives the root scheduler command.
   - `NginxBlocklist` renders the nginx deny file and real-IP lines.
 - Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.

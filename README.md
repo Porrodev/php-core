@@ -79,6 +79,11 @@ Network results go through the connector's own cache via `Sources` (failures for
     - Nothing ever replaces the whole list.
   - `disconnect()` removes this site's items and rule. It deletes the list only once it's empty.
   - **Token permissions:** Account Filter Lists Edit, Zone WAF Edit, Zone Read.
+- `NginxStatus`: how far one server's nginx setup has got, found by looking and never by running anything.
+  - **Written:** the deny file exists.
+  - **Included:** a file under `sites-enabled`, `conf.d` or `forge-conf` includes it. Commented-out lines don't count, and it's unknown when the config can't be read.
+  - **Reloaded:** the reload job's stamp, `/var/tmp/porro-nginx.stamp`, is newer than the file.
+  - `reloadJob()` is the root scheduler command that does the reloading.
 - `NginxBlocklist`: renders the `deny` file for nginx, plus the Cloudflare real-IP lines that must come before it. It writes the file atomically and only when the list changed.
 
 ## What a report says about the database
