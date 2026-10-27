@@ -49,6 +49,30 @@ These are plain file reads, with no `exec`. Anything the PHP process can't read,
 
 Network results go through the connector's own cache via `Sources` (failures for ten minutes), so a control panel page rarely waits on the network and an unreachable API never slows every page.
 
+## Suspicious activity and blocking
+
+`Porro\Core\Activity` is what each connector's Activity and Blocking panels are built on. It works on the site alone, and IP addresses never leave it.
+
+- `ClientIp`: the visitor's address. Uses the framework's own value, which respects the site's trusted proxies, and believes `CF-Connecting-IP` only when the request came from a Cloudflare range.
+- `Probes`: paths scanners ask for that no visitor of a Laravel, Craft or Statamic site does. These are dotfiles and secrets, VCS folders, WordPress, database admin tools and known exploits. Paths the app really serves can be excluded.
+- `Recorder`: counts probes, failed logins, 404 bursts and form floods in the connector's cache.
+  - Counts go into hourly buckets kept for 48 hours.
+  - Only those events are recorded, so ordinary page views cost nothing, and every write fails open.
+  - Usernames are kept only as keyed hashes.
+  - `summary()` returns the flagged IPs, worst first, and the issues for the panel. Those cover a file such as `/.env` answering 200, IPs probing or trying passwords, and a site that can't see visitor IPs because every request seems to come from a proxy.
+- `ProtectedRanges`: addresses that are never blocked or flagged.
+  - These are Cloudflare, Laravel Forge and its health checks, private and reserved ranges, and the site's own config.
+  - Published lists are fetched once a day.
+  - A response that isn't a clean list of addresses is thrown away whole, and the copy bundled with the release is used instead.
+- `Blocklist`: the blocklist and safelist and their safety rules.
+  - It refuses blocks that would break the site: protected ranges, the admin's own IP, anything safelisted, ranges wider than /16 (IPv4) or /48 (IPv6), and more than 5,000 entries.
+  - `prune()` drops expired entries and blocks that have since become protected or safelisted.
+  - Connectors store entries through `EntryStore`, a database table, so every server of a site sees the same list.
+- `Countries`: a rough country for each flagged IP.
+  - Behind Cloudflare it uses the `CF-IPCountry` header the request already carries (`ClientIp::country()`), so there's no lookup at all.
+  - Elsewhere it reads [DB-IP's free country file](https://db-ip.com/db/download/ip-to-country-lite) on the site: about 4MB, downloaded monthly by `update()`, CC BY 4.0. Panels showing these countries must credit DB-IP (`Countries::ATTRIBUTION`).
+- `NginxBlocklist`: renders the `deny` file for nginx, plus the Cloudflare real-IP lines that must come before it. It writes the file atomically and only when the list changed.
+
 ## What a report says about the database
 
 Connectors describe the site's default database connection with `Database::describe($driver, $serverVersion, $host)` and pass it to `Report::database()`, so Porro can flag an end-of-life MySQL, MariaDB or PostgreSQL:

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `Porro\Core\Activity`, for the connectors' suspicious activity and blocking panels. Everything stays on the site.
+  - `ClientIp` resolves the visitor's address.
+  - `Probes` matches scanner paths.
+  - `Recorder` counts suspicious requests in the cache and summarises them. Its issues are `exposed_file`, `suspicious_activity` and `client_ip_unknown`.
+  - `ProtectedRanges` covers Cloudflare, Forge and its health checks, and reserved ranges, fetched daily with a bundled fallback.
+  - `Blocklist` holds the blocklist and safelist and enforces the safety rules, through an `EntryStore` the connector provides.
+  - `Countries` gives a rough country for flagged IPs. It uses Cloudflare's `CF-IPCountry` when present, otherwise DB-IP's free country file read on the site. `Recorder::record()` takes the country Cloudflare sent.
+  - `NginxBlocklist` renders the nginx deny file and real-IP lines.
+- Requires `maxmind-db/reader`.
+- `Sources::text()` fetches a plain-text response. `json()` now uses it.
+
 ## 0.2.1
 
 - Signatures now cover the method and path (`connector-v1\n{METHOD}\n{path}\n{timestamp}\n{nonce}\n{sha256 of body}`), so a report's signature can't be used to read findings or the other way round. `SiteKey::headers()` takes the method and path; it defaults to `POST /api/v1/reports`. Porro still accepts the old signature for reports, but reading findings needs this version.
