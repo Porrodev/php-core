@@ -84,6 +84,12 @@ Network results go through the connector's own cache via `Sources` (failures for
   - **Included:** a file under `sites-enabled`, `conf.d` or `forge-conf` includes it. Commented-out lines don't count, and it's unknown when the config can't be read.
   - **Reloaded:** the reload job's stamp, `/var/tmp/porro-nginx.stamp`, is newer than the file.
   - `reloadJob()` is the root scheduler command that does the reloading.
+- `IpDetails`: who's behind a flagged IP, cached a day per IP. None of these sources sends the IP anywhere new.
+  - **Network and country:** the network, its type and any risk categories come from Cloudflare (Intel, else Radar) when the connector has it. Cloudflare already handles the site's traffic.
+  - **Country fallback:** DB-IP's file on the site.
+  - **Badges:** Tor exit and Spamhaus DROP, from lists downloaded whole and checked locally.
+  - **Reverse DNS:** kept only when it resolves back to the same IP. It spots a fake Googlebot (the user agent claims Google, the address isn't Google's) and research scanners such as Censys and Shodan.
+- `AbuseIpdb`: AbuseIPDB's confidence score and report count for one IP. It sends the IP to AbuseIPDB, so panels only run it when someone clicks.
 - `NginxBlocklist`: renders the `deny` file for nginx, plus the Cloudflare real-IP lines that must come before it. It writes the file atomically and only when the list changed.
 
 ## What a report says about the database

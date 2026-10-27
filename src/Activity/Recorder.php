@@ -81,7 +81,7 @@ final class Recorder
     /**
      * @param  string|null  $country  two-letter code the edge already knows, e.g. Cloudflare's CF-IPCountry
      */
-    public function record(string $ip, string $signal, string $method, string $path, int $status, ?string $username = null, ?int $at = null, ?string $country = null): void
+    public function record(string $ip, string $signal, string $method, string $path, int $status, ?string $username = null, ?int $at = null, ?string $country = null, ?string $userAgent = null): void
     {
         if (! in_array($signal, self::SIGNALS, true) || filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return;
@@ -109,7 +109,7 @@ final class Recorder
                 return;
             }
 
-            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country));
+            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country), $userAgent);
         } catch (Throwable) {
             // Fail open.
         }
@@ -176,6 +176,7 @@ final class Recorder
                     lastStatus: $data['st'],
                     lastSeen: $data['t'],
                     country: $data['cc'],
+                    userAgent: $data['ua'],
                     recent: array_slice($data['r'], 0, self::RECENT_CAP),
                     hourly: $data['h'],
                     score: $this->score($data['c']),
@@ -232,7 +233,7 @@ final class Recorder
         return $score;
     }
 
-    private function touch(string $hour, string $ip, string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country): void
+    private function touch(string $hour, string $ip, string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country, ?string $userAgent = null): void
     {
         $key = "{$hour}:ip:{$ip}";
         $record = $this->read($key);
@@ -248,6 +249,11 @@ final class Recorder
 
         if ($country !== null) {
             $record['cc'] = $country;
+        }
+
+        // The last one only, cut short: enough to spot a fake Googlebot.
+        if ($userAgent !== null && $userAgent !== '') {
+            $record['ua'] = substr($userAgent, 0, 200);
         }
 
         $recent = $record['r'] ?? [];
@@ -277,9 +283,10 @@ final class Recorder
      */
     private function merge(?array $into, array $record, string $hour): array
     {
-        $into ??= ['c' => array_fill_keys(self::SIGNALS, 0), 'u' => [], 'm' => '', 'p' => '', 'st' => 0, 't' => 0, 'cc' => null, 'r' => [], 'h' => [], 'flagged' => false];
+        $into ??= ['c' => array_fill_keys(self::SIGNALS, 0), 'u' => [], 'm' => '', 'p' => '', 'st' => 0, 't' => 0, 'cc' => null, 'ua' => null, 'r' => [], 'h' => [], 'flagged' => false];
 
         $into['cc'] = $record['cc'] ?? $into['cc'];
+        $into['ua'] = $record['ua'] ?? $into['ua'];
 
         foreach ($record['c'] ?? [] as $signal => $n) {
             $into['c'][$signal] = ($into['c'][$signal] ?? 0) + (int) $n;

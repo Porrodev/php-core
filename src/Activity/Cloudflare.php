@@ -190,6 +190,49 @@ final class Cloudflare
         }
     }
 
+    /**
+     * Cloudflare IP Intelligence: country, network and its type, and any
+     * risk categories. Needs Account → Intel → Read on the token; on most
+     * plans that may be unavailable, so callers fall back to radar().
+     *
+     * @return array{country: string|null, asn: int|null, network: string|null, network_type: string|null, risks: list<string>}
+     *
+     * @throws CloudflareError
+     */
+    public function intel(string $account, string $ip): array
+    {
+        $param = Cidr::parse($ip)->isV4() ? 'ipv4' : 'ipv6';
+        $result = $this->request('GET', "/accounts/{$account}/intel/ip?".http_build_query([$param => $ip]));
+        $row = is_array($result[0] ?? null) ? $result[0] : (is_array($result) ? $result : []);
+        $network = is_array($row['belongs_to_ref'] ?? null) ? $row['belongs_to_ref'] : [];
+
+        return [
+            'country' => Recorder::country(is_string($network['country'] ?? null) ? $network['country'] : null),
+            'asn' => is_numeric($network['value'] ?? null) ? (int) $network['value'] : null,
+            'network' => is_string($network['description'] ?? null) ? $network['description'] : null,
+            'network_type' => is_string($network['type'] ?? null) ? $network['type'] : null,
+            'risks' => array_values(array_filter(array_map(fn ($r) => is_array($r) && is_string($r['name'] ?? null) ? $r['name'] : null, (array) ($row['risk_types'] ?? [])))),
+        ];
+    }
+
+    /**
+     * Cloudflare Radar: network and location only, with any token.
+     *
+     * @return array{country: string|null, asn: int|null, network: string|null}
+     *
+     * @throws CloudflareError
+     */
+    public function radar(string $ip): array
+    {
+        $row = (array) ($this->request('GET', '/radar/entities/ip?'.http_build_query(['ip' => $ip]))['ip'] ?? []);
+
+        return [
+            'country' => Recorder::country(is_string($row['location'] ?? null) ? $row['location'] : null),
+            'asn' => is_numeric($row['asn'] ?? null) ? (int) $row['asn'] : null,
+            'network' => is_string($row['asnOrgName'] ?? null) ? $row['asnOrgName'] : (is_string($row['asnName'] ?? null) ? $row['asnName'] : null),
+        ];
+    }
+
     public static function prefix(string $siteId): string
     {
         return 'porro:'.$siteId.':';

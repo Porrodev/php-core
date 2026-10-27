@@ -36,6 +36,20 @@ final class Sources
     ) {}
 
     /**
+     * The cached value, or null: never fetches.
+     */
+    public function cached(string $key): mixed
+    {
+        try {
+            $cached = ($this->get)('porro:health:'.$key);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_array($cached) && array_key_exists('value', $cached) ? $cached['value'] : null;
+    }
+
+    /**
      * The cached value, or $fetch's result stored for $ttl seconds. When
      * $fetch returns null (it failed), null is stored for FAILURE_TTL.
      *
