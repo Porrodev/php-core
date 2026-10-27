@@ -20,14 +20,22 @@ final class NginxBlocklist
     /**
      * @param  list<Entry>  $entries
      */
-    public static function render(array $entries, ?int $now = null): string
+    public static function render(array $entries, ?int $now = null, ?string $realIp = null): string
     {
         $now ??= time();
         $lines = [
             '# Written by Porro. Changes here are overwritten: manage the blocklist in the control panel.',
             '# '.gmdate('Y-m-d H:i:s', $now).' UTC · '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries'),
-            'deny '.self::CANARY.';',
         ];
+
+        // Behind Cloudflare, the real IP lines travel in the same file, so
+        // the site needs one include and they stay current. nginx resolves
+        // the real IP before it checks deny, wherever the lines sit.
+        if ($realIp !== null) {
+            $lines[] = rtrim($realIp);
+        }
+
+        $lines[] = 'deny '.self::CANARY.';';
 
         foreach ($entries as $entry) {
             if (! $entry->isExpired($now) && Cidr::isValid($entry->cidr)) {

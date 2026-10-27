@@ -85,7 +85,11 @@ final class NginxStatus
                 $pattern = '/^\s*include\s+["\']?'.preg_quote($path, '/').'["\']?\s*;/m';
 
                 if (preg_match($pattern, $contents)) {
-                    return [true, (bool) preg_match('/^\s*real_ip_header\s+/m', $contents), $file];
+                    // Set up in the site's config, or carried in Porro's own file.
+                    $realIp = (bool) preg_match('/^\s*real_ip_header\s+/m', $contents)
+                        || (bool) preg_match('/^\s*real_ip_header\s+/m', (string) @file_get_contents($path, false, null, 0, self::MAX_FILE));
+
+                    return [true, $realIp, $file];
                 }
             }
         }
