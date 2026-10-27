@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-10-27
 
 - `Porro\Core\Activity`, for the connectors' suspicious activity and blocking panels. Everything stays on the site.
   - `ClientIp` resolves the visitor's address.
@@ -29,7 +29,8 @@
     - **Multipliers:** Spamhaus ×3, Tor ×1.5, a fake crawler ×1.5, Cloudflare Botnet or Anonymizer ×2, and a hosting network trying passwords ×1.5.
     - **Scanners:** research scanners go last.
     - **Inputs:** `IpDetails::known()` feeds it from the Tor and Spamhaus lists and any cached lookup, without waiting on the network.
-  - `NginxBlocklist` renders the nginx deny file and real-IP lines.
+  - `NginxBlocklist` renders the nginx deny file and real-IP lines. `render()` can carry Cloudflare's real-IP lines in the deny file itself, so a site behind Cloudflare needs one include and the ranges stay current. `NginxStatus` counts real-IP lines found there.
+  - `ProtectedRanges` also protects Google's and Bing's verified search crawlers (their published lists, fetched daily as JSON with bundled copies; never Google Cloud or user-triggered fetchers). `about()` explains each list, where it comes from and its ranges. Forge, its health checks and the crawlers can be switched off; Cloudflare and private ranges can't.
 - Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.
 
