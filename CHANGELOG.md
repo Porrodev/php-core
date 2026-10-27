@@ -9,6 +9,9 @@
   - `ProtectedRanges` covers Cloudflare, Forge and its health checks, and reserved ranges, fetched daily with a bundled fallback.
   - `Blocklist` holds the blocklist and safelist and enforces the safety rules, through an `EntryStore` the connector provides.
   - `Countries` gives a rough country for flagged IPs. It uses Cloudflare's `CF-IPCountry` when present, otherwise DB-IP's free country file read on the site. `Recorder::record()` takes the country Cloudflare sent.
+  - `Cloudflare` blocks at Cloudflare's edge, through one account IP List (`porro_blocklist`) and one custom rule on the zone.
+    - Each site syncs only items carrying its own comment prefix, so many sites can share one account's list.
+    - The rule is added next to the zone's own custom rules and never replaces them.
   - `NginxBlocklist` renders the nginx deny file and real-IP lines.
 - Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.
