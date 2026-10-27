@@ -16,6 +16,15 @@
     - It reports whether the deny file is written and whether site config includes it, read from `/etc/nginx/sites-enabled`, `conf.d` and `forge-conf`.
     - It also reports whether the reload job has reloaded nginx since the last change.
     - `reloadJob()` gives the root scheduler command.
+  - `IpDetails` says who's behind a flagged IP, from sources that send it nowhere new:
+    - Cloudflare Intel or Radar, through the connector
+    - DB-IP country
+    - the Tor exit list and Spamhaus DROP, downloaded whole
+    - reverse DNS confirmed by a forward lookup, which spots fake Googlebots and research scanners
+
+    Results are cached a day. `Cloudflare::intel()` and `radar()` feed it.
+  - `AbuseIpdb` checks one IP on request. It's the only lookup that sends the IP to a third party.
+  - `Recorder` keeps each flagged IP's last user agent.
   - `NginxBlocklist` renders the nginx deny file and real-IP lines.
 - Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.

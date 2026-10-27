@@ -25,11 +25,13 @@ final class FlaggedIp
         public readonly int $score,
         // Two-letter code from the edge (T1 is Cloudflare's Tor), or null.
         public readonly ?string $country = null,
+        // The last user agent it sent, cut to 200 characters.
+        public readonly ?string $userAgent = null,
     ) {}
 
     public function withCountry(?string $country): self
     {
-        return new self($this->ip, $this->counts, $this->users, $this->lastMethod, $this->lastPath, $this->lastStatus, $this->lastSeen, $this->recent, $this->hourly, $this->score, $country);
+        return new self($this->ip, $this->counts, $this->users, $this->lastMethod, $this->lastPath, $this->lastStatus, $this->lastSeen, $this->recent, $this->hourly, $this->score, $country, $this->userAgent);
     }
 
     /**
@@ -62,6 +64,7 @@ final class FlaggedIp
             'hourly' => $this->hourly,
             'score' => $this->score,
             'country' => $this->country,
+            'user_agent' => $this->userAgent,
         ];
     }
 }
