@@ -93,8 +93,25 @@ final class Sources
      */
     public function json(string $method, string $url, array $headers = [], ?string $body = null): ?array
     {
+        $response = $this->text($method, $url, $headers + ['Accept' => 'application/json'], $body);
+
+        if ($response === null) {
+            return null;
+        }
+
+        $data = json_decode($response, true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * A successful response's body, or null on any error.
+     *
+     * @param  array<string, string>  $headers
+     */
+    public function text(string $method, string $url, array $headers = [], ?string $body = null): ?string
+    {
         $headers += [
-            'Accept' => 'application/json',
             'User-Agent' => 'porro-connector/'.(Report::installedVersion('porro/php-core') ?? 'dev').' (+https://porro.dev)',
         ];
 
@@ -108,9 +125,7 @@ final class Sources
             return null;
         }
 
-        $data = json_decode($response, true);
-
-        return is_array($data) ? $data : null;
+        return $response;
     }
 
     /**
