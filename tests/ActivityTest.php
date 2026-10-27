@@ -620,6 +620,14 @@ describe('nginx', function () {
             ->and($file)->toStartWith('# Written by Porro');
     });
 
+    it('carries the real IP lines in the same file when asked', function () {
+        $file = NginxBlocklist::render([new Entry('185.220.101.4', 'x')], ACTIVITY_NOW, NginxBlocklist::realIp(new ProtectedRanges));
+
+        expect($file)->toContain("set_real_ip_from 173.245.48.0/20;\n")
+            ->toContain("real_ip_header CF-Connecting-IP;\ndeny 192.0.2.1;\ndeny 185.220.101.4;\n")
+            ->and(NginxBlocklist::render([], ACTIVITY_NOW))->not->toContain('real_ip_header');
+    });
+
     it('generates real IP lines from Cloudflare’s ranges', function () {
         $lines = NginxBlocklist::realIp(new ProtectedRanges);
 
@@ -768,6 +776,10 @@ describe('nginx status', function () {
 
         file_put_contents($this->dir.'/forge-conf/example.com/server/porro.conf', "include \"{$this->file}\";\n");
         expect(($this->check)())->toMatchArray(['included' => true, 'real_ip' => false]);
+
+        // Real IP lines carried in Porro's own file count too.
+        NginxBlocklist::write($this->file, NginxBlocklist::render([], null, NginxBlocklist::realIp(new ProtectedRanges)));
+        expect(($this->check)())->toMatchArray(['included' => true, 'real_ip' => true]);
     });
 
     it('says when it can’t read the config', function () {
