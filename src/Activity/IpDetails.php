@@ -81,6 +81,35 @@ final class IpDetails
     }
 
     /**
+     * What's known about $ip without waiting on anything: the Tor and
+     * Spamhaus lists (already downloaded), plus a full lookup if one is
+     * cached. Cheap enough to run for every flagged IP on a page.
+     *
+     * @return array{badges: list<string>, risks: list<string>, network_type: string|null}
+     */
+    public function known(string $ip, ?string $userAgent = null): array
+    {
+        $ip = (string) Cidr::parse($ip);
+        $cached = $this->sources->cached('ipdetails:'.sha1($ip.'|'.self::claimedCrawler($userAgent)));
+
+        $badges = is_array($cached) ? (array) ($cached['badges'] ?? []) : [];
+
+        if ($this->tor()->has($ip)) {
+            $badges[] = self::TOR;
+        }
+
+        if ($this->drop()->has($ip)) {
+            $badges[] = self::SPAMHAUS;
+        }
+
+        return [
+            'badges' => array_values(array_unique($badges)),
+            'risks' => is_array($cached) ? array_values((array) ($cached['risks'] ?? [])) : [],
+            'network_type' => is_array($cached) ? ($cached['network_type'] ?? null) : null,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function fetch(string $ip, ?string $crawler): array

@@ -25,6 +25,10 @@
     Results are cached a day. `Cloudflare::intel()` and `radar()` feed it.
   - `AbuseIpdb` checks one IP on request. It's the only lookup that sends the IP to a third party.
   - `Recorder` keeps each flagged IP's last user agent.
+  - `Ranking` orders flagged IPs by what's known about them.
+    - **Multipliers:** Spamhaus ×3, Tor ×1.5, a fake crawler ×1.5, Cloudflare Botnet or Anonymizer ×2, and a hosting network trying passwords ×1.5.
+    - **Scanners:** research scanners go last.
+    - **Inputs:** `IpDetails::known()` feeds it from the Tor and Spamhaus lists and any cached lookup, without waiting on the network.
   - `NginxBlocklist` renders the nginx deny file and real-IP lines.
 - Requires `maxmind-db/reader`.
 - `Sources::text()` fetches a plain-text response. `json()` now uses it.

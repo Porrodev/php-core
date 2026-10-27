@@ -2,8 +2,10 @@
 
 use Porro\Core\Activity\AbuseIpdb;
 use Porro\Core\Activity\Cloudflare;
+use Porro\Core\Activity\FlaggedIp;
 use Porro\Core\Activity\IpDetails;
 use Porro\Core\Activity\ProtectedRanges;
+use Porro\Core\Activity\Ranking;
 use Porro\Core\Activity\Recorder;
 use Porro\Core\Health\Sources;
 
@@ -145,4 +147,52 @@ it('remembers the last user agent of a flagged IP', function () {
 
     expect(strlen($recorder->summary()->flagged[0]->userAgent))->toBe(200)
         ->and($recorder->summary()->flagged[0]->toArray())->toHaveKey('user_agent');
+});
+
+describe('ranking', function () {
+    function flaggedIp(string $ip, int $score, array $counts = [Recorder::PROBE => 1], int $lastSeen = 0): FlaggedIp
+    {
+        return new FlaggedIp($ip, $counts, 0, 'GET', '/', 404, $lastSeen, [], [], $score);
+    }
+
+    it('lifts IPs by what’s known about them, and sends scanners last', function () {
+        $known = [
+            '91.92.240.17' => ['badges' => [IpDetails::SPAMHAUS], 'risks' => [], 'network_type' => null],
+            '185.220.101.4' => ['badges' => [IpDetails::TOR], 'risks' => ['Anonymizer'], 'network_type' => null],
+            '45.148.10.92' => ['badges' => [IpDetails::HOSTING], 'risks' => [], 'network_type' => 'hosting_provider'],
+            '167.94.138.5' => ['badges' => [IpDetails::SCANNER], 'risks' => [], 'network_type' => null],
+        ];
+
+        $ranked = Ranking::apply([
+            flaggedIp('167.94.138.5', 500),
+            flaggedIp('103.75.190.11', 40),
+            // Equal once lifted: the one seen most recently goes first.
+            flaggedIp('91.92.240.17', 15, lastSeen: 20),
+            flaggedIp('185.220.101.4', 15, lastSeen: 30),
+            flaggedIp('45.148.10.92', 30, [Recorder::LOGIN_FAILED => 10], lastSeen: 10),
+        ], fn ($ip) => $known[$ip->ip] ?? ['badges' => [], 'risks' => [], 'network_type' => null]);
+
+        expect(array_map(fn ($ip) => [$ip->ip, $ip->ranking()], $ranked))->toBe([
+            ['185.220.101.4', 45.0],   // 15 × 1.5 Tor × 2 Anonymizer
+            ['91.92.240.17', 45.0],    // 15 × 3 Spamhaus
+            ['45.148.10.92', 45.0],    // 30 × 1.5 hosting trying passwords
+            ['103.75.190.11', 40.0],
+            ['167.94.138.5', 500.0],   // a research scanner: noisy, last
+        ])
+            ->and($ranked[0]->badges)->toBe([IpDetails::TOR, 'risk'])
+            ->and($ranked[0]->toArray())->toMatchArray(['rank' => 45.0, 'badges' => [IpDetails::TOR, 'risk']]);
+    });
+
+    it('knows the lists without a lookup, and adds a cached lookup', function () {
+        $calls = [];
+        $sources = listSources([], $calls);
+        $lookup = new IpDetails($sources, null, fn () => ['network_type' => 'hosting_provider', 'risks' => ['Botnet'], 'source' => 'Cloudflare'], fn () => 'scan.censys-scanner.com');
+
+        expect($lookup->known('185.220.101.4'))->toBe(['badges' => [IpDetails::TOR], 'risks' => [], 'network_type' => null])
+            ->and($lookup->known('91.92.240.1')['badges'])->toBe([IpDetails::SPAMHAUS]);
+
+        $lookup->lookup('45.148.10.92');
+
+        expect($lookup->known('45.148.10.92'))->toBe(['badges' => [IpDetails::HOSTING, IpDetails::SCANNER], 'risks' => ['Botnet'], 'network_type' => 'hosting_provider']);
+    });
 });
