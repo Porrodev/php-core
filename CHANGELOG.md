@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.5 - 2026-10-28
 
 - Batched activity writes. Give `Recorder` a `Buffer` and suspicious requests never touch the database on the request path: each appends one short line to a file on its server (fopen 'a', one fwrite under an exclusive lock). `Recorder::flush()` records them in batches: one read and one write per IP and hour, one increment per total, however many requests there were. The watch list and exposed-file alerts are written once a flush.
 - Lines are cut short and usernames hashed before they're written, so nothing waits on disk that the store wouldn't keep. A flush checks every line, since the file sits on disk, and skips anything malformed or older than 48 hours.
