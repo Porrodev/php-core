@@ -8,7 +8,7 @@ use Porro\Core\Activity\Entry;
  * Just enough of Cloudflare's API, in memory: zones, lists and their
  * items (paged two at a time), zone rulesets and bulk operations.
  */
-final class FakeCloudflare
+class FakeCloudflare
 {
     /** @var list<array{0: string, 1: string, 2: mixed}> */
     public array $calls = [];
@@ -27,6 +27,8 @@ final class FakeCloudflare
 
     public bool $tokenActive = true;
 
+    public bool $accountToken = false;
+
     public ?string $failListCreate = null;
 
     public ?string $failOperation = null;
@@ -41,7 +43,12 @@ final class FakeCloudflare
             $this->calls[] = [$method, $path, $data];
 
             if (($headers['Authorization'] ?? '') !== 'Bearer token') {
-                return $this->fail(401, 'Invalid API Token');
+                return $this->fail(401, 'Invalid API Token', 1000);
+            }
+
+            // An account-owned token, unknown to the user endpoint.
+            if ($this->accountToken && strtok($path, '?') === '/user/tokens/verify') {
+                return $this->fail(401, 'Invalid API Token', 1000);
             }
 
             return $this->route($method, $path, $data);
@@ -60,8 +67,8 @@ final class FakeCloudflare
         $path = (string) parse_url($path, PHP_URL_PATH);
 
         return match (true) {
-            $path === '/user/tokens/verify' => $this->ok(['status' => $this->tokenActive ? 'active' : 'disabled']),
-            $path === '/zones' => $this->ok(isset($this->zones[$query['name'] ?? '']) ? [$this->zones[$query['name']]] : []),
+            $path === '/user/tokens/verify', $path === '/accounts/a1/tokens/verify' => $this->ok(['status' => $this->tokenActive ? 'active' : 'disabled']),
+            $path === '/zones' => $this->ok(isset($query['name']) ? (isset($this->zones[$query['name']]) ? [$this->zones[$query['name']]] : []) : array_slice(array_values($this->zones), 0, 1)),
             $method === 'GET' && $path === '/accounts/a1/rules/lists' => $this->ok(array_values($this->lists)),
             $method === 'POST' && $path === '/accounts/a1/rules/lists' => $this->createList($data),
             (bool) preg_match('#^/accounts/a1/rules/lists/bulk_operations/(\w+)$#', $path) => $this->failOperation
@@ -155,9 +162,9 @@ final class FakeCloudflare
         return [200, json_encode(['success' => true, 'errors' => [], 'result' => $result])];
     }
 
-    private function fail(int $status, string $message): array
+    private function fail(int $status, string $message, ?int $code = null): array
     {
-        return [$status, json_encode(['success' => false, 'errors' => [['code' => 10000 + $status, 'message' => $message]], 'result' => null])];
+        return [$status, json_encode(['success' => false, 'errors' => [['code' => $code ?? 10000 + $status, 'message' => $message]], 'result' => null])];
     }
 }
 
@@ -176,7 +183,33 @@ it('checks the token is active', function () {
     $this->fake->tokenActive = false;
     expect(fn () => cloudflare($this->fake)->verify())->toThrow(CloudflareError::class, 'isn’t active');
 
-    expect(fn () => cloudflare($this->fake, 'wrong')->verify())->toThrow(CloudflareError::class, 'refused the token: Invalid API Token');
+    expect(fn () => cloudflare($this->fake, 'wrong')->verify())->toThrow(CloudflareError::class, 'doesn’t recognise this token');
+});
+
+it('accepts an account-owned token, checked at its account', function () {
+    $this->fake->accountToken = true;
+
+    cloudflare($this->fake)->verify();
+
+    expect($this->fake->methods())->toBe(['GET /user/tokens/verify', 'GET /zones', 'GET /accounts/a1/tokens/verify']);
+});
+
+it('ignores quotes and spaces pasted around the token', function () {
+    cloudflare($this->fake, " \"token\"\n")->verify();
+
+    expect($this->fake->methods())->toBe(['GET /user/tokens/verify']);
+});
+
+it('names the permissions when one is missing', function () {
+    $fake = new class extends FakeCloudflare
+    {
+        public function http(): Closure
+        {
+            return fn () => [403, json_encode(['success' => false, 'errors' => [['code' => 10000, 'message' => 'Authentication error']]])];
+        }
+    };
+
+    expect(fn () => cloudflare($fake)->verify())->toThrow(CloudflareError::class, 'Zone WAF Rules: Edit and Zone: Read');
 });
 
 it('finds the zone from a subdomain', function () {
