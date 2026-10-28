@@ -532,6 +532,53 @@ describe('recorder', function () {
             ->and($ip->estimated)->toBeTrue();
     });
 
+    it('writes one in a hundred once a flood is ten times past the mark', function () {
+        $cache = [];
+        $writes = 0;
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache, &$writes) {
+                $cache[$key] = $value;
+                $writes++;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            random: fn (int $min, int $max) => $max === 100 ? 1 : 2,
+        );
+        $hour = gmdate('YmdH', ACTIVITY_NOW);
+        $cache[Recorder::PREFIX."{$hour}:ip:185.220.101.4"] = ['q' => Recorder::FLOOD_AFTER * Recorder::FLOOD_SAMPLE, 'b' => 3000, 't' => ACTIVITY_NOW];
+
+        $recorder->turnedAway('185.220.101.4', 'GET', '/', at: ACTIVITY_NOW);
+
+        expect($recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60)->turnedAway)->toBe(3100);
+    });
+
+    it('reads key by key when a batch read fails', function () {
+        $cache = [];
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache) {
+                $cache[$key] = $value;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            many: fn () => throw new RuntimeException('down'),
+        );
+        $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', '/.env', 404, at: ACTIVITY_NOW);
+
+        expect($recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60)->requests)->toBe(1);
+    });
+
     it('drops IPs from the watch list once their activity has gone', function () {
         $recorder = recorder($cache);
 

@@ -53,7 +53,8 @@ final class Recorder
     /**
      * Past this many requests from one IP in an hour, only one in
      * FLOOD_SAMPLE is written, counted FLOOD_SAMPLE times: a flood costs a
-     * tenth of the writes, and its counts become close estimates.
+     * tenth of the writes, and its counts become close estimates. Ten
+     * times further on, one in a hundred.
      */
     public const FLOOD_AFTER = 300;
 
@@ -630,11 +631,15 @@ final class Recorder
      */
     private function weight(array $record): int
     {
-        if ((int) ($record['q'] ?? 0) < self::FLOOD_AFTER) {
+        $requests = (int) ($record['q'] ?? 0);
+
+        if ($requests < self::FLOOD_AFTER) {
             return 1;
         }
 
-        return ($this->random)(1, self::FLOOD_SAMPLE) === 1 ? self::FLOOD_SAMPLE : 0;
+        $sample = $requests < self::FLOOD_AFTER * self::FLOOD_SAMPLE ? self::FLOOD_SAMPLE : self::FLOOD_SAMPLE ** 2;
+
+        return ($this->random)(1, $sample) === 1 ? $sample : 0;
     }
 
     /**
@@ -661,7 +666,8 @@ final class Recorder
         try {
             $values = ($this->many)(array_values(array_map(fn (string $key) => $this->key($key), $keys)));
         } catch (Throwable) {
-            $values = [];
+            // One at a time, rather than an empty history.
+            return array_map(fn (string $key) => $this->read($key), $keys);
         }
 
         return array_map(fn (string $key) => is_array($values[$this->key($key)] ?? null) ? $values[$this->key($key)] : [], $keys);
