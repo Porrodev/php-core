@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `Recorder::history($ip)` returns an `IpActivity`: everything recorded for one IP over the last 48 hours, flagged or not. It includes requests, first and last seen, top paths with their last status, what its probes were after, user agents, hosts, methods, status classes, requests through Cloudflare versus straight to the server, and requests a block turned away.
+- Once an IP is flagged it goes on a watch list (`Recorder::watched()`), and `Recorder::seen()` counts its other requests, so the IP page can say how many it made. Ordinary visitors still cost nothing. `Recorder::turnedAway()` counts blocked requests.
+- `record()` takes the probe `category`, `host` and whether the request came through Cloudflare (`proxied`). Per-IP lists are capped (25 paths, 5 user agents, 5 hosts), so records stay small. Records saved by earlier versions still read.
 - A weekly workflow suggests new probe paths from OWASP CRS (Apache-2.0) and recent CISA KEV CVEs, using the matching nuclei templates (MIT). It writes them to `resources/probes/candidates.json` and opens a pull request for review. `Probes` itself only changes by hand. See "Reviewing probe candidates" in the README.
 
 ## 0.3.3 - 2026-10-28

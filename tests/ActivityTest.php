@@ -7,6 +7,7 @@ use Porro\Core\Activity\Countries;
 use Porro\Core\Activity\Entry;
 use Porro\Core\Activity\EntryStore;
 use Porro\Core\Activity\FlaggedIp;
+use Porro\Core\Activity\IpActivity;
 use Porro\Core\Activity\IpSet;
 use Porro\Core\Activity\NginxBlocklist;
 use Porro\Core\Activity\NginxStatus;
@@ -465,6 +466,102 @@ describe('probes', function () {
 });
 
 describe('recorder', function () {
+    it('sums up everything an IP did, for its page', function () {
+        $recorder = recorder($cache);
+
+        foreach (['/containers/json', '/images/json', '/containers/json'] as $i => $path) {
+            $recorder->record('185.177.72.69', Recorder::PROBE, 'GET', $path, 404, at: ACTIVITY_NOW + $i, userAgent: 'zgrab/0.x', category: Probes::INFRASTRUCTURE, host: 'www.Example.com', proxied: true);
+        }
+        $recorder->record('185.177.72.69', Recorder::NOT_FOUND, 'POST', '/info', 404, at: ACTIVITY_NOW + 3, userAgent: 'curl/8', host: 'example.com', proxied: false);
+
+        $ip = $recorder->history('185.177.72.69', 48, ACTIVITY_NOW + 60);
+
+        expect($ip)->toBeInstanceOf(IpActivity::class)
+            ->and($ip->requests)->toBe(4)
+            ->and($ip->flagged)->toBeTrue()
+            ->and($ip->firstSeen)->toBe(ACTIVITY_NOW)
+            ->and($ip->lastSeen)->toBe(ACTIVITY_NOW + 3)
+            ->and($ip->paths)->toBe(['/containers/json' => [2, 404], '/images/json' => [1, 404], '/info' => [1, 404]])
+            ->and($ip->categories)->toBe([Probes::INFRASTRUCTURE => 3])
+            ->and($ip->agents)->toBe(['zgrab/0.x' => 3, 'curl/8' => 1])
+            ->and($ip->hosts)->toBe(['www.example.com' => 3, 'example.com' => 1])
+            ->and($ip->methods)->toBe(['GET' => 3, 'POST' => 1])
+            ->and($ip->statuses)->toBe(['4xx' => 4])
+            ->and($ip->viaCloudflare)->toBe(3)
+            ->and($ip->direct)->toBe(1)
+            ->and($recorder->history('203.0.113.9', 48, ACTIVITY_NOW + 60))->toBeNull();
+    });
+
+    it('watches a flagged IP, and counts its other requests without flagging on them', function () {
+        $recorder = recorder($cache);
+        $recorder->seen('185.220.101.4', 'GET', '/', 200, at: ACTIVITY_NOW);
+
+        expect($recorder->watched(ACTIVITY_NOW))->toBe([])
+            ->and($recorder->summary(24, ACTIVITY_NOW + 60)->flagged)->toBe([]);
+
+        foreach (['/.env', '/.git/config', '/backup.zip'] as $i => $path) {
+            $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', $path, 404, at: ACTIVITY_NOW + 1 + $i);
+        }
+        foreach (range(1, 5) as $i) {
+            $recorder->seen('185.220.101.4', 'GET', '/', 200, at: ACTIVITY_NOW + 10 + $i);
+        }
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60);
+
+        expect($recorder->watched(ACTIVITY_NOW + 60))->toBe(['185.220.101.4'])
+            ->and($recorder->watched(ACTIVITY_NOW + Recorder::TTL + 10))->toBe([])
+            ->and($ip->requests)->toBe(9)
+            ->and($ip->counts[Recorder::PROBE])->toBe(3)
+            ->and($ip->statuses)->toBe(['2xx' => 6, '4xx' => 3])
+            ->and($recorder->summary(24, ACTIVITY_NOW + 60)->totals[Recorder::PROBE])->toBe(3);
+    });
+
+    it('counts requests a block turned away', function () {
+        $recorder = recorder($cache);
+
+        foreach (range(1, 4) as $i) {
+            $recorder->turnedAway('185.220.101.4', 'GET', '/.env', 'example.com', at: ACTIVITY_NOW + $i);
+        }
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60);
+
+        expect($ip->turnedAway)->toBe(4)
+            ->and($ip->requests)->toBe(4)
+            ->and($ip->statuses)->toBe(['4xx' => 4])
+            ->and($ip->flagged)->toBeFalse()
+            ->and($recorder->history('104.16.1.1', 48, ACTIVITY_NOW + 60))->toBeNull();
+    });
+
+    it('keeps each IP’s lists short, counting the rest', function () {
+        $recorder = recorder($cache);
+
+        foreach (range(1, Recorder::PATHS_CAP + 10) as $i) {
+            $recorder->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', "/missing-{$i}", 404, at: ACTIVITY_NOW + $i, userAgent: "agent-{$i}", host: "h{$i}.example.com");
+        }
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 600);
+
+        expect($ip->paths)->toHaveCount(Recorder::PATHS_CAP)
+            ->and($ip->otherPaths)->toBe(10)
+            ->and($ip->agents)->toHaveCount(Recorder::AGENTS_CAP)
+            ->and($ip->agents)->toHaveKey('agent-'.(Recorder::PATHS_CAP + 10))
+            ->and($ip->hosts)->toHaveCount(Recorder::HOSTS_CAP)
+            ->and($ip->requests)->toBe(Recorder::PATHS_CAP + 10);
+    });
+
+    it('reads records saved before requests were counted', function () {
+        $cache = [];
+        $recorder = recorder($cache);
+        $hour = gmdate('YmdH', ACTIVITY_NOW);
+        $cache[Recorder::PREFIX."{$hour}:ip:185.220.101.4"] = ['c' => [Recorder::PROBE => 3], 'm' => 'GET', 'p' => '/.env', 'st' => 404, 't' => ACTIVITY_NOW, 'r' => []];
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60);
+
+        expect($ip->requests)->toBe(3)
+            ->and($ip->firstSeen)->toBe(ACTIVITY_NOW)
+            ->and($ip->flagged)->toBeTrue();
+    });
+
     it('flags an IP after three probes in an hour', function () {
         $recorder = recorder($cache);
 
@@ -984,4 +1081,8 @@ describe('a stable nginx path on zero-downtime sites', function () {
         expect(NginxBlocklist::stablePath('/home/forge/example.com/storage/porro/nginx-blocklist.conf'))
             ->toBe('/home/forge/example.com/storage/porro/nginx-blocklist.conf');
     });
+});
+
+it('names every probe category in words', function () {
+    expect(array_keys(Probes::LABELS))->toEqualCanonicalizing(array_keys(Probes::PATTERNS));
 });
