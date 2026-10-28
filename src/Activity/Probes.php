@@ -24,7 +24,9 @@ final class Probes
         self::SECRETS => '#(^|/)(\.env([./_-].*)?|\.aws/credentials|\.ssh/.*|\.htpasswd|id_[rd]sa|[^/]*\.sql(\.gz|\.zip)?|backup\.(zip|tar|tar\.gz|tgz|sql)|(config|wp-config|database)\.php\.(bak|old|orig|save|swp|txt|~))$#',
         self::WORDPRESS => '#(^|/)(wp-login\.php|xmlrpc\.php|wp-admin(/.*)?|wp-content/.*|wp-includes/.*)$#',
         self::DB_ADMIN => '#^/(phpmyadmin[^/]*|pma|myadmin|adminer(-[\d.]+)?(\.php)?)(/.*)?$#',
-        self::EXPLOIT => '#(^|/)(vendor/phpunit/.*|cgi-bin/.*|_ignition/execute-solution|actuator(/.*)?|boaform/.*|telescope(/.*)?)$#',
+        // Docker's API (/containers/json, /v1.41/images/json) and MLflow's
+        // are sought by scanners hunting for exposed servers, not websites.
+        self::EXPLOIT => '#(^|/)(vendor/phpunit/.*|cgi-bin/.*|_ignition/execute-solution|actuator(/.*)?|boaform/.*|telescope(/.*)?|(ajax-)?api/2\.0/mlflow/.*)$|^/(v1\.\d+/)?(containers|images)/json$#',
     ];
 
     /** Categories that leak something when the site answers 2xx. */

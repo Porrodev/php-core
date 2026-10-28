@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Probes: Docker API paths (`/containers/json`, `/v1.41/images/json`) and MLflow (`/api/2.0/mlflow/…`) count as exploit probes. Scanners hunt for these exposed servers; `/info` and `/version` stay unflagged, since sites use them.
+
 ## 0.3.2 - 2026-10-28
 
 - `Cloudflare::verify()` accepts account-owned tokens. Cloudflare's user endpoint calls them invalid, so it checks them again at their account's endpoint.
