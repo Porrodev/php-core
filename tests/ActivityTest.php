@@ -253,50 +253,203 @@ describe('client ip', function () {
 });
 
 describe('probes', function () {
-    it('names the category of scanner paths', function (string $path, ?string $category) {
+    it('names the category of scanner paths', function (string $path, string $category) {
         expect((new Probes)->match($path))->toBe($category);
     })->with([
+        // Traversal: raw dot segments, encoded once or twice, and OS files.
+        ['/public/plugins/alertlist/../../../../etc/passwd', Probes::TRAVERSAL],
+        ['/cgi-bin/.%2e/.%2e/etc/passwd', Probes::TRAVERSAL],
+        ['/unauth/%252e%252e/php/ztp_gate.php', Probes::TRAVERSAL],
+        ['/foo/..;/manager/html', Probes::TRAVERSAL],
+        ['/static/..\\..\\windows/win.ini', Probes::TRAVERSAL],
+        ['/@fs/etc/passwd', Probes::TRAVERSAL],
+        ['/proc/self/environ', Probes::TRAVERSAL],
+        ['/image.php%00.jpg', Probes::TRAVERSAL],
+        // Version control.
+        ['/.git/config', Probes::VCS],
+        ['/.git/HEAD', Probes::VCS],
+        ['/.svn/entries', Probes::VCS],
+        ['/.hg/hgrc', Probes::VCS],
+        ['/.bzr/branch/branch.conf', Probes::VCS],
+        ['/.gitlab-ci.yml', Probes::VCS],
+        // Secrets: a 2xx here means it leaked.
         ['/.env', Probes::SECRETS],
         ['/.env.production', Probes::SECRETS],
+        ['/.env~', Probes::SECRETS],
+        ['/.env.', Probes::SECRETS],
+        ['/app/.env', Probes::SECRETS],
         ['/%2Eenv?x=1', Probes::SECRETS],
+        ['/%252eenv', Probes::SECRETS],
         ['//.ENV', Probes::SECRETS],
         ['/backup.zip', Probes::SECRETS],
+        ['/www.zip', Probes::SECRETS],
+        ['/public_html.tar.gz', Probes::SECRETS],
         ['/db/dump.sql.gz', Probes::SECRETS],
         ['/wp-config.php.bak', Probes::SECRETS],
+        ['/index.php~', Probes::SECRETS],
+        ['/.config.php.swp', Probes::SECRETS],
         ['/.aws/credentials', Probes::SECRETS],
-        ['/.git/config', Probes::VCS],
-        ['/.svn/entries', Probes::VCS],
+        ['/.aws/config', Probes::SECRETS],
+        ['/.git-credentials', Probes::SECRETS],
+        ['/terraform.tfstate', Probes::SECRETS],
+        // Deploy and editor config.
+        ['/.vscode/sftp.json', Probes::FILES],
+        ['/sftp-config.json', Probes::FILES],
+        ['/docker-compose.prod.yml', Probes::FILES],
+        ['/docker-compose.yml', Probes::FILES],
+        ['/.npmrc', Probes::FILES],
+        ['/.DS_Store', Probes::FILES],
+        // Debug and info leaks.
+        ['/phpinfo.php', Probes::DEBUG],
+        ['/php_info.php', Probes::DEBUG],
+        ['/_profiler/phpinfo', Probes::DEBUG],
+        ['/_debugbar/open', Probes::DEBUG],
+        ['/storage/logs/laravel.log', Probes::DEBUG],
+        ['/storage/logs/web.log', Probes::DEBUG],
+        ['/server-status', Probes::DEBUG],
+        ['/telescope/requests', Probes::DEBUG],
+        // Web shells someone else dropped.
+        ['/wso.php', Probes::WEBSHELL],
+        ['/wp-content/plugins/x/alfa.php', Probes::WEBSHELL],
+        ['/xleet.phtml', Probes::WEBSHELL],
+        ['/.well-known/acme-challenge/x.php', Probes::WEBSHELL],
+        ['/.well-known/pki-validation/up.phtml', Probes::WEBSHELL],
+        // WordPress.
         ['/wp-login.php', Probes::WORDPRESS],
         ['/blog/xmlrpc.php', Probes::WORDPRESS],
         ['/wp-admin/', Probes::WORDPRESS],
+        ['/wp-content/plugins/revslider/temp/update_extract/x.php', Probes::WORDPRESS],
+        ['/wp-content/uploads/2026/x.php', Probes::WORDPRESS],
+        ['/wp-content/uploads/a.jpg.php', Probes::WORDPRESS],
+        ['/wp-content/uploads/a.jpg/more', Probes::WORDPRESS],
+        // Database admin.
         ['/phpmyadmin/', Probes::DB_ADMIN],
+        ['/phpMyAdmin-5.2.1/index.php', Probes::DB_ADMIN],
+        ['/phpmyadmin4/', Probes::DB_ADMIN],
+        ['/pma/', Probes::DB_ADMIN],
+        ['/admin/phpmyadmin/', Probes::DB_ADMIN],
+        ['/mysqladmin', Probes::DB_ADMIN],
         ['/adminer.php', Probes::DB_ADMIN],
+        ['/adminer-4.8.1.php', Probes::DB_ADMIN],
+        // Exposed service APIs.
+        ['/containers/json', Probes::INFRASTRUCTURE],
+        ['/v1.41/images/json', Probes::INFRASTRUCTURE],
+        ['/api/2.0/mlflow/registered-models/search', Probes::INFRASTRUCTURE],
+        ['/ajax-api/2.0/mlflow/experiments/list', Probes::INFRASTRUCTURE],
+        ['/v2/_catalog', Probes::INFRASTRUCTURE],
+        ['/_cat/indices', Probes::INFRASTRUCTURE],
+        ['/debug/pprof/heap', Probes::INFRASTRUCTURE],
+        ['/latest/meta-data/iam/security-credentials/', Probes::INFRASTRUCTURE],
+        ['/computeMetadata/v1/instance', Probes::INFRASTRUCTURE],
+        ['/nacos/v1/auth/users', Probes::INFRASTRUCTURE],
+        // Edge appliances.
+        ['/remote/logincheck', Probes::APPLIANCE],
+        ['/dana-na/auth/url_default/welcome.cgi', Probes::APPLIANCE],
+        ['/p/u/doAuthentication.do', Probes::APPLIANCE],
+        ['/global-protect/login.esp', Probes::APPLIANCE],
+        ['/ssl-vpn/hipreport.esp', Probes::APPLIANCE],
+        ['/+CSCOE+/logon.html', Probes::APPLIANCE],
+        ['/mgmt/tm/util/bash', Probes::APPLIANCE],
+        ['/clients/MyCRL', Probes::APPLIANCE],
+        ['/SetupWizard.aspx/x', Probes::APPLIANCE],
+        ['/WebInterface/function/', Probes::APPLIANCE],
+        ['/developmentserver/metadatauploader', Probes::APPLIANCE],
+        ['/_layouts/15/ToolPane.aspx', Probes::APPLIANCE],
+        ['/moveitisapi/moveitisapi.dll', Probes::APPLIANCE],
+        ['/HNAP1', Probes::APPLIANCE],
+        ['/GponForm/diag_Form', Probes::APPLIANCE],
+        ['/goform/formLogin', Probes::APPLIANCE],
+        ['/boaform/admin/formLogin', Probes::APPLIANCE],
+        // Java servers.
+        ['/actuator/env', Probes::JAVA],
+        ['/manager/html', Probes::JAVA],
+        ['/WEB-INF/web.xml', Probes::JAVA],
+        ['/server-info.action', Probes::JAVA],
+        ['/json/setup-restore.action', Probes::JAVA],
+        ['/${jndi:ldap://x/a}', Probes::JAVA],
+        // PHP exploits.
         ['/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php', Probes::EXPLOIT],
         ['/_ignition/execute-solution', Probes::EXPLOIT],
         ['/cgi-bin/luci', Probes::EXPLOIT],
-        ['/containers/json', Probes::EXPLOIT],
-        ['/v1.41/images/json', Probes::EXPLOIT],
-        ['/api/2.0/mlflow/registered-models/search', Probes::EXPLOIT],
-        ['/ajax-api/2.0/mlflow/experiments/list', Probes::EXPLOIT],
-        ['/info', null],
-        ['/version', null],
-        ['/shop/containers/json-guide', null],
-        ['/blog/containers', null],
-        ['/', null],
-        ['/environment', null],
-        ['/blog/git-tips', null],
-        ['/about.sql-guide', null],
-        ['/.well-known/acme-challenge/x', null],
-        ['/admin/login', null],
-        ['/pmanagement', null],
-        ['/pma/', Probes::DB_ADMIN],
+        ['/php-cgi/php-cgi.exe', Probes::EXPLOIT],
     ]);
+
+    it('leaves real pages, routes and assets alone', function (string $path) {
+        expect((new Probes)->match($path))->toBeNull();
+    })->with([
+        // Control panels and CMS routes.
+        '/', '/admin', '/admin/login', '/admin/entries/blog', '/admin/actions/assets/generate-transform',
+        '/cp', '/cp/collections/pages', '/!/forms/contact', '/index.php', '/index.php/blog/post',
+        '/login', '/user/login', '/user/register', '/register', '/administrator', '/administrator/login', '/craft',
+        // APIs and package routes.
+        '/api', '/api/collections/pages/entries', '/api/tags', '/graphql', '/v1/models', '/v1/chat/completions',
+        '/api/v1/pods', '/api/v1/namespaces', '/latest/user-data', '/info', '/version', '/up', '/health', '/metrics',
+        '/config', '/config.json', '/manifest.json', '/debug', '/logs', '/log-viewer', '/horizon', '/horizon/api/stats',
+        '/pulse', '/livewire/update', '/livewire/livewire.js', '/service-worker.js', '/sw.js',
+        // Published assets and uploads.
+        '/vendor/statamic/cp/js/app.js', '/vendor/telescope/app.js', '/storage/products/photo.jpg',
+        '/assets/example.php.txt', '/media/fm.php', '/tools/upload.php', '/archive/1.php', '/info.php', '/test.php',
+        // Content slugs that share a word with a probe.
+        '/shop/telescope', '/blog/telescope-guide', '/products/actuator', '/shop/containers/json-guide',
+        '/blog/containers', '/blog/git-tips', '/about.sql-guide', '/environment', '/products/shell-necklace',
+        '/shell', '/script', '/script-writing', '/console/images/ps5.jpg', '/citrix', '/citrix/review',
+        '/contact.do', '/checkout.action', '/docs/dockerfile', '/examples/web.config', '/docs/.htaccess',
+        '/api/auth.json', '/downloads/catalogue.zip', '/downloads/data.zip', '/archive.zip', '/release.zip',
+        '/downloads/manual.pdf', '/pmanagement', '/administration-services', '/joomla-vs-wordpress',
+        '/etc', '/blog/etc/passwords-101', '/owa', '/ecp', '/remote', '/remote-working', '/manager',
+        '/dana', '/vpn', '/webmail', '/cpanel', '/autodiscover/autodiscover.xml',
+        // Shapes an earlier draft caught too broadly.
+        '/api/v1/validate/code', '/site.zip', '/website.zip', '/database.gz', '/dump.bak', '/db.zip',
+        '/compose.yml', '/goform/contact', '/nacos/getting-started', '/tools/pma', '/admin/dbadmin',
+        '/admin/sqladmin', '/.well-known/hooks/deploy.php', '/phpmyadmin-guide', '/blog/phpmyadmin-tips', '/data.sqlite', '/docs/schema.sqlx',
+        // Migrated WordPress media, and well-known files.
+        '/wp-content/uploads/2019/05/photo.jpg', '/wp-content/uploads/2020/brochure.pdf',
+        '/.well-known/acme-challenge/abc', '/.well-known/security.txt', '/.well-known/change-password',
+        '/robots.txt', '/sitemap.xml', '/favicon.ico',
+        // Single dots and lookalikes are not traversal.
+        '/blog/./post', '/a..b', '/file..txt', '/v1.2/release-notes',
+    ]);
+
+    it('matches a very long path on whole segments only', function () {
+        expect((new Probes)->match('/.git/'.str_repeat('a', 100_000)))->toBe(Probes::VCS)
+            ->and((new Probes)->match('/'.str_repeat('a', 3000).'/.git/config'))->toBe(Probes::VCS)
+            // A single segment past the cap is never cut into a match.
+            ->and((new Probes)->match('/'.str_repeat('a', Probes::MAX_LENGTH + 10).'.sql'))->toBeNull()
+            ->and((new Probes)->match('/'.str_repeat('a', Probes::MAX_LENGTH - 5).'.sqlite-and-more/page'))->toBeNull()
+            ->and((new Probes)->match('/'.str_repeat('a', 20_000)))->toBeNull();
+    });
+
+    it('decodes a bounded number of times', function () {
+        expect(Probes::normalise('/%25252e'))->toBe('/.')
+            ->and(Probes::normalise('/%2525252e'))->toBe('/%2e')
+            ->and(Probes::normalise('/100%'))->toBe('/100%')
+            ->and(Probes::normalise('/%zz'))->toBe('/%zz');
+    });
+
+    it('only treats secrets and version control as leaked when they answer', function () {
+        foreach (array_keys(Probes::PATTERNS) as $category) {
+            expect(Probes::exposes($category))->toBe(in_array($category, [Probes::SECRETS, Probes::VCS], true), $category);
+        }
+    });
 
     it('leaves paths the app really serves alone', function () {
         $probes = new Probes('laravel', ['/telescope']);
 
         expect($probes->match('/telescope/requests'))->toBeNull()
-            ->and((new Probes)->match('/telescope/requests'))->toBe(Probes::EXPLOIT);
+            ->and((new Probes)->match('/telescope/requests'))->toBe(Probes::DEBUG);
+
+        // Mounted under a prefix: the same exemption, normalised once.
+        $prefixed = new Probes('laravel', ['/Internal/Telescope/']);
+        expect($prefixed->match('/internal/telescope/requests'))->toBeNull()
+            ->and($prefixed->match('/internal/telescope'))->toBeNull();
+    });
+
+    it('skips WordPress paths, but not web shells, on WordPress', function () {
+        $wordpress = new Probes('wordpress');
+
+        expect($wordpress->match('/wp-login.php'))->toBeNull()
+            ->and($wordpress->match('/xmlrpc.php'))->toBeNull()
+            ->and($wordpress->match('/wp-content/plugins/x/wso.php'))->toBe(Probes::WEBSHELL);
     });
 
     it('skips WordPress paths on WordPress', function () {

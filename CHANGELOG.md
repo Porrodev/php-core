@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Probes: Docker API paths (`/containers/json`, `/v1.41/images/json`) and MLflow (`/api/2.0/mlflow/…`) count as exploit probes. Scanners hunt for these exposed servers; `/info` and `/version` stay unflagged, since sites use them.
+- Probes cover far more of what scanners look for, in named categories: `traversal`, `vcs`, `secrets`, `files`, `debug`, `webshell`, `wordpress`, `db_admin`, `infrastructure` (Docker, MLflow, Elasticsearch, cloud metadata), `appliance` (Fortinet, Ivanti, Citrix, PAN-OS, Cisco, F5, MOVEit and others with exploited CVEs), `java` and `exploit`. Every pattern is a fixed shape anchored where its target lives; generic words like `/v1/models`, `/shell`, `/script` or `/api/tags` are left out on purpose, and pinned by tests.
+- Fewer false positives: `/telescope` and `/actuator` only match at the root (a shop's `/shop/telescope` page no longer does), and images or PDFs under `wp-content/uploads` on a site that used to be WordPress count as old links, not probes.
+- `normalise()` decodes up to three times, so `%252e` reads as `.`, and paths over 8 KB are matched on their whole first segments.
+- `exposes()` is unchanged: only `secrets` and `vcs` count as leaked on a 2xx. The new `files` category (deploy and editor config) never does, until exposure checks the response body.
+- A failing probe pattern throws instead of passing quietly as "not a probe".
 
 ## 0.3.2 - 2026-10-28
 
