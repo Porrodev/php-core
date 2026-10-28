@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 - 2026-10-28
 
 - Probes cover far more of what scanners look for, in named categories: `traversal`, `vcs`, `secrets`, `files`, `debug`, `webshell`, `wordpress`, `db_admin`, `infrastructure` (Docker, MLflow, Elasticsearch, cloud metadata), `appliance` (Fortinet, Ivanti, Citrix, PAN-OS, Cisco, F5, MOVEit and others with exploited CVEs), `java` and `exploit`. Every pattern is a fixed shape anchored where its target lives; generic words like `/v1/models`, `/shell`, `/script` or `/api/tags` are left out on purpose, and pinned by tests.
 - Fewer false positives: `/telescope` and `/actuator` only match at the root (a shop's `/shop/telescope` page no longer does), and images or PDFs under `wp-content/uploads` on a site that used to be WordPress count as old links, not probes.
