@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.3.4 - 2026-10-28
 
 - `Recorder::history($ip)` returns an `IpActivity`: everything recorded for one IP over the last 48 hours, flagged or not. It includes requests, first and last seen, top paths with their last status, what its probes were after, user agents, hosts, methods, status classes, requests through Cloudflare versus straight to the server, and requests a block turned away.
 - Once an IP is flagged it goes on a watch list (`Recorder::watched()`), and `Recorder::seen()` counts its other requests, so the IP page can say how many it made. Ordinary visitors still cost nothing. `Recorder::turnedAway()` counts blocked requests.
 - `record()` takes the probe `category`, `host` and whether the request came through Cloudflare (`proxied`). Per-IP lists are capped (25 paths, 5 user agents, 5 hosts), so records stay small. Records saved by earlier versions still read.
+- `Probes::LABELS` names each probe category in words.
+- Hardened against floods, after a security and performance review by Codex, Gemini and an independent Claude agent:
+  - Past 300 requests from one IP in an hour, only one request in ten is written, counted ten times. Past 3,000, one in a hundred. `IpActivity::estimated` says when counts are sampled.
+  - Once an hour's index of 500 IPs is full, new IPs only count towards the totals and add no records.
+  - Methods outside the standard ones are kept as `OTHER`.
+  - The watch list drops IPs whose activity has expired.
+- The increment closure takes `$by`. A new optional `many` closure lets `history()` read 48 hours in one go, falling back to key by key if that fails.
 - A weekly workflow suggests new probe paths from OWASP CRS (Apache-2.0) and recent CISA KEV CVEs, using the matching nuclei templates (MIT). It writes them to `resources/probes/candidates.json` and opens a pull request for review. `Probes` itself only changes by hand. See "Reviewing probe candidates" in the README.
 
 ## 0.3.3 - 2026-10-28
