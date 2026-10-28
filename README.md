@@ -55,10 +55,16 @@ Network results go through the connector's own cache via `Sources` (failures for
 
 - `ClientIp`: the visitor's address. Uses the framework's own value, which respects the site's trusted proxies, and believes `CF-Connecting-IP` only when the request came from a Cloudflare range.
 - `Probes`: paths scanners ask for that no visitor of a Laravel, Craft or Statamic site does. These are dotfiles and secrets, VCS folders, WordPress, database admin tools and known exploits. Paths the app really serves can be excluded.
-- `Recorder`: counts probes, failed logins, 404 bursts and form floods in the connector's cache.
+- `Recorder`: counts probes, failed logins, 404 bursts and form floods in the connector's store.
   - Counts go into hourly buckets kept for 48 hours.
   - Only those events are recorded, so ordinary page views cost nothing, and every write fails open.
   - Usernames are kept only as keyed hashes.
+  - Given a `Buffer`, a request never writes to the store: it appends one line to a file on its server, and `flush()` records the lines in batches, with one read and one write per IP and hour and one increment per total. Counts stay exact during a flood. Connectors flush from their scheduler, now and then after a suspicious request, and before a page reads activity.
+- `Buffer`: the per-server file behind batched writes.
+  - Each line is appended under an exclusive lock, already cut short and with the username hashed.
+  - The file is capped at 2 MB. Past that, a request only adds a byte to its hour's count, so a flood can't fill the disk and the totals still add up.
+  - A flush renames the file before reading it, so flushes can run at the same time, on one server or several, without counting a line twice. An optional lock keeps two servers from updating the same records at once.
+  - Where the folder can't be written, the `Recorder` writes straight to its store, as before.
   - `summary()` returns the flagged IPs, worst first, and the issues for the panel. Those cover a file such as `/.env` answering 200, IPs probing or trying passwords, and a site that can't see visitor IPs because every request seems to come from a proxy.
 - `ProtectedRanges`: addresses that are never blocked or flagged.
   - These are Cloudflare, Laravel Forge and its health checks, private and reserved ranges, and the site's own config.
