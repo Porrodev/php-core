@@ -19,10 +19,10 @@ use Throwable;
  */
 final class Buffer
 {
-    /** Bytes of lines kept before only counting. */
-    public const CAP = 4 * 1024 * 1024;
+    /** Bytes of lines kept before only counting: a few thousand requests, flushed in well under 64 MB. */
+    public const CAP = 2 * 1024 * 1024;
 
-    /** One byte per request past the cap; past this, nothing more is kept. */
+    /** One byte per request past the cap, a file per hour; past this, nothing more is kept. */
     public const OVER_CAP = 1024 * 1024;
 
     /** A taken file this old was left by a flush that died: picked up again. */
@@ -64,8 +64,9 @@ final class Buffer
      * dropped, unless $keep: then false, so it's recorded directly.
      *
      * @param  list<mixed>  $line
+     * @param  int|null  $at  when the request came, for the hour it's counted in past the cap
      */
-    public function append(array $line, ?string $signal = null, bool $keep = false): bool
+    public function append(array $line, ?string $signal = null, bool $keep = false, ?int $at = null): bool
     {
         if (! $this->usable()) {
             return false;
@@ -80,25 +81,22 @@ final class Buffer
         $written = $this->write($this->path, $data."\n", $this->cap);
 
         if ($written === null) {
-            return $keep ? false : $this->over($signal);
+            return $keep ? false : $this->over($signal, $at ?? time());
         }
 
         return $written;
     }
 
     /**
-     * Past the cap: one byte for a signal, so totals still add up, and up
-     * to OVER_CAP of those.
+     * Past the cap: one byte for a signal in this hour's file, so totals
+     * still add up, and up to OVER_CAP of those. False when the byte
+     * couldn't be written, so the request is recorded directly.
      */
-    private function over(?string $signal): bool
+    private function over(?string $signal, int $at): bool
     {
         $byte = $signal === null ? null : (self::OVER[$signal] ?? null);
 
-        if ($byte !== null) {
-            $this->write($this->path.'.over', $byte, self::OVER_CAP);
-        }
-
-        return true;
+        return $byte === null || $this->write($this->path.'.over-'.gmdate('YmdH', $at), $byte, self::OVER_CAP) !== false;
     }
 
     /**
@@ -116,11 +114,11 @@ final class Buffer
             }
 
             try {
-                if (! flock($handle, LOCK_EX)) {
+                if (! self::quietly(fn () => flock($handle, LOCK_EX))) {
                     return false;
                 }
 
-                $opened = fstat($handle);
+                $opened = self::quietly(fn () => fstat($handle));
                 clearstatcache(true, $file);
                 $current = self::quietly(fn () => stat($file));
 
@@ -132,10 +130,9 @@ final class Buffer
                     return null;
                 }
 
-                return fwrite($handle, $data) === strlen($data);
+                return self::quietly(fn () => fwrite($handle, $data)) === strlen($data);
             } finally {
-                flock($handle, LOCK_UN);
-                fclose($handle);
+                self::release($handle);
             }
         }
 
@@ -173,8 +170,7 @@ final class Buffer
 
             return true;
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            self::release($handle);
         }
     }
 
@@ -187,7 +183,8 @@ final class Buffer
         try {
             clearstatcache();
 
-            if (! (file_exists($this->path) && filesize($this->path) > 0) && ! file_exists($this->path.'.over')) {
+            // Past the cap the file stays full, so this covers the over counts too.
+            if (! file_exists($this->path) || filesize($this->path) < 1) {
                 return false;
             }
 
@@ -205,11 +202,22 @@ final class Buffer
      */
     public function clear(): void
     {
-        foreach ([$this->path, $this->path.'.over', ...(glob($this->path.'.*.taking') ?: [])] as $file) {
+        foreach ([$this->path, ...(glob($this->path.'.over-*') ?: []), ...(glob($this->path.'.*.taking') ?: [])] as $file) {
             if (file_exists($file)) {
                 self::quietly(fn () => unlink($file));
             }
         }
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private static function release($handle): void
+    {
+        self::quietly(function () use ($handle) {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        });
     }
 
     /**
@@ -229,23 +237,25 @@ final class Buffer
     }
 
     /**
-     * Everything waiting, now removed from disk: the lines, and per
-     * signal how many requests past the cap were only counted.
+     * Everything waiting, now removed from disk: the lines, and per hour
+     * and signal how many requests past the cap were only counted.
      *
-     * @return array{0: list<mixed>, 1: array<string, int>}
+     * @return array{0: list<mixed>, 1: array<string, array<string, int>>}
      */
     public function take(?int $now = null): array
     {
         $lines = [];
         $over = [];
 
-        foreach ($this->claim($now ?? time()) as $file => $isOver) {
-            $data = $this->drain($file, $isOver ? self::OVER_CAP : $this->cap);
+        foreach ($this->claim($now ?? time()) as $file => $hour) {
+            $data = $this->drain($file, $hour !== null ? self::OVER_CAP : $this->cap);
 
-            if ($isOver) {
+            if ($hour !== null) {
                 foreach (self::OVER as $signal => $byte) {
-                    $over[$signal] = ($over[$signal] ?? 0) + substr_count($data, $byte);
+                    $over[$hour][$signal] = ($over[$hour][$signal] ?? 0) + substr_count($data, $byte);
                 }
+
+                $over[$hour] = array_filter($over[$hour]);
 
                 continue;
             }
@@ -266,27 +276,26 @@ final class Buffer
      * Renames the live files aside, so new lines start a fresh file and no
      * other flush can read these, plus any a dead flush left behind.
      *
-     * @return array<string, bool> file => whether it's the over count
+     * @return array<string, string|null> file => the hour of an over count, null for lines
      */
     private function claim(int $now): array
     {
         $id = bin2hex(random_bytes(6));
         $files = [];
-
-        $over = basename($this->path).'.over.';
+        $hour = fn (string $file) => preg_match('/\.over-(\d{10})(\.|$)/', basename($file), $m) ? $m[1] : null;
 
         // Older lines first: those a dead flush left behind.
         foreach (glob($this->path.'.*.taking') ?: [] as $orphan) {
             if ((int) self::quietly(fn () => filemtime($orphan)) <= $now - self::ORPHAN_AFTER) {
-                $files[$orphan] = str_starts_with(basename($orphan), $over);
+                $files[$orphan] = $hour($orphan);
             }
         }
 
-        foreach ([$this->path => false, $this->path.'.over' => true] as $live => $isOver) {
+        foreach ([$this->path, ...(glob($this->path.'.over-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]') ?: [])] as $live) {
             $taken = "{$live}.{$id}.taking";
 
             if (file_exists($live) && self::quietly(fn () => rename($live, $taken))) {
-                $files[$taken] = $isOver;
+                $files[$taken] = $hour($live);
             }
         }
 
@@ -307,15 +316,18 @@ final class Buffer
         }
 
         try {
-            flock($handle, LOCK_EX);
+            // No lock, no read: a request could be mid-write. Left for later.
+            if (! self::quietly(fn () => flock($handle, LOCK_EX))) {
+                return '';
+            }
+
             // A little over the cap: the line that crossed it.
             $data = (string) stream_get_contents($handle, $max + 65536);
             self::quietly(fn () => unlink($file));
 
             return $data;
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            self::release($handle);
         }
     }
 }

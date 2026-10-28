@@ -4,10 +4,11 @@
 
 - Batched activity writes. Give `Recorder` a `Buffer` and suspicious requests never touch the database on the request path: each appends one short line to a file on its server (fopen 'a', one fwrite under an exclusive lock). `Recorder::flush()` records them in batches: one read and one write per IP and hour, one increment per total, however many requests there were. The watch list and exposed-file alerts are written once a flush.
 - Lines are cut short and usernames hashed before they're written, so nothing waits on disk that the store wouldn't keep. A flush checks every line, since the file sits on disk, and skips anything malformed or older than 48 hours.
-- The file is capped at 4 MB. Past that a request only appends one byte for its signal (up to 1 MB of them), so a flood can't fill the disk and the totals still add up. An exposed file is recorded directly instead.
-- Flushes are safe to run at the same time, on one server or several: a flush renames the file before reading it, waits for any request mid-write, and only one runs per server at a time. The optional `lock` closure keeps flushes on different servers from updating the same records at once. A flush that dies loses its lines rather than counting them twice, and files it left behind are picked up after 10 minutes.
+- The file is capped at 2 MB, so a full flush stays near 30 MB of memory. Past that a request only appends one byte for its signal to that hour's count (up to 1 MB of them an hour), so a flood can't fill the disk and the totals still add up. An exposed file is recorded directly instead, as is any request whose byte can't be written.
+- Flushes are safe to run at the same time, on one server or several: a flush renames the file before reading it, waits for any request mid-write, and only one runs per server at a time. The optional `lock` closure keeps flushes on different servers from updating the same records at once. One record failing to save costs only that record, and the exposed-file alert is written first. A flush that dies outright loses its lines rather than counting them twice, and files it left behind are picked up after 10 minutes. A flush skipped because another server held the lock leaves this server due.
 - When the folder can't be written (Vapor, say), requests are recorded directly, as before. Flood sampling now only applies then: buffered counts are exact.
-- `Recorder::flushDue()` says when this server hasn't flushed for a minute and has lines waiting.
+- `Recorder::flushDue($seconds)` says when this server has lines waiting and hasn't flushed for that long. `Buffer::clear()` deletes what's waiting, for when batching is switched off.
+- Requests from another server's flush that are older than what's recorded don't become an IP's last request seen.
 
 ## 0.3.4 - 2026-10-28
 

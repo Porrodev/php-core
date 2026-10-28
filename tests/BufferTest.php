@@ -155,7 +155,7 @@ describe('buffer', function () {
         $recorder->seen('185.220.101.4', 'GET', '/', 200, at: BUFFER_NOW);
 
         expect(filesize($buffer->path))->toBeLessThan(2000 + 400)
-            ->and(filesize($buffer->path.'.over'))->toBeLessThan(500);
+            ->and(filesize($buffer->path.'.over-'.gmdate('YmdH', BUFFER_NOW)))->toBeLessThan(500);
 
         expect($recorder->flush(BUFFER_NOW))->toBe(500);
 
@@ -163,18 +163,19 @@ describe('buffer', function () {
 
         expect($recorder->summary(24, BUFFER_NOW)->totals[Recorder::NOT_FOUND])->toBe(500)
             ->and($ip->requests)->toBeLessThan(20)
-            ->and(file_exists($buffer->path.'.over'))->toBeFalse();
+            ->and(glob($buffer->path.'.over-*'))->toBe([]);
     });
 
     it('stops counting once the over count is full too', function () {
         $buffer = new Buffer(bufferPath(), cap: 1);
         file_put_contents($buffer->path, 'x');
-        file_put_contents($buffer->path.'.over', str_repeat('n', Buffer::OVER_CAP));
+        $over = $buffer->path.'.over-'.gmdate('YmdH', BUFFER_NOW);
+        file_put_contents($over, str_repeat('n', Buffer::OVER_CAP));
 
         bufferedRecorder($buffer)->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW);
         clearstatcache();
 
-        expect(filesize($buffer->path.'.over'))->toBe(Buffer::OVER_CAP);
+        expect(filesize($over))->toBe(Buffer::OVER_CAP);
     });
 
     it('records an exposed file directly once the buffer is full, rather than lose it', function () {
@@ -285,14 +286,14 @@ describe('buffer', function () {
         $buffer = new Buffer(bufferPath());
         $line = json_encode(['r', '185.220.101.4', Recorder::NOT_FOUND, 'GET', '/x', 404, null, null, null, null, null, BUFFER_NOW, null]);
         file_put_contents("{$buffer->path}.dead.taking", $line."\n");
-        file_put_contents("{$buffer->path}.over.dead2.taking", 'nn');
+        file_put_contents("{$buffer->path}.over-2026102708.dead2.taking", 'nn');
 
         expect($buffer->take(time())[0])->toBe([]);
 
         touch("{$buffer->path}.dead.taking", time() - Buffer::ORPHAN_AFTER - 1);
-        touch("{$buffer->path}.over.dead2.taking", time() - Buffer::ORPHAN_AFTER - 1);
+        touch("{$buffer->path}.over-2026102708.dead2.taking", time() - Buffer::ORPHAN_AFTER - 1);
 
-        expect($buffer->take(time()))->toEqual([[json_decode($line, true)], [Recorder::NOT_FOUND => 2]]);
+        expect($buffer->take(time()))->toEqual([[json_decode($line, true)], ['2026102708' => [Recorder::NOT_FOUND => 2]]]);
     });
 
     it('keeps the exposed-file alert and the other IPs when one record fails to save', function () {
@@ -366,12 +367,30 @@ describe('buffer', function () {
     it('clears what’s waiting when batching is switched off', function () {
         $buffer = new Buffer(bufferPath(), cap: 1);
         file_put_contents($buffer->path, 'x');
-        file_put_contents($buffer->path.'.over', 'n');
+        file_put_contents($buffer->path.'.over-2026102708', 'n');
         file_put_contents($buffer->path.'.abc.taking', 'y');
 
         $buffer->clear();
 
         expect(glob($buffer->path.'*'))->toBe([]);
     });
-});
 
+    it('counts requests past the cap in the hour they came, and records directly when even that can’t be written', function () {
+        $buffer = new Buffer(bufferPath(), cap: 1);
+        file_put_contents($buffer->path, 'x');
+        $recorder = bufferedRecorder($buffer, $cache);
+
+        $recorder->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW - 3600);
+        $recorder->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW);
+        $recorder->flush(BUFFER_NOW);
+
+        expect($cache['porro:activity:'.gmdate('YmdH', BUFFER_NOW - 3600).':t:not_found'])->toBe(1)
+            ->and($cache['porro:activity:'.gmdate('YmdH', BUFFER_NOW).':t:not_found'])->toBe(1);
+
+        file_put_contents($buffer->path, 'x');
+        mkdir($buffer->path.'.over-'.gmdate('YmdH', BUFFER_NOW));
+        $recorder->record('45.33.32.156', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW);
+
+        expect($recorder->history('45.33.32.156', 48, BUFFER_NOW)->requests)->toBe(1);
+    });
+});

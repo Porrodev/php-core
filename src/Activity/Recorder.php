@@ -633,7 +633,7 @@ final class Recorder
      * written once, each total incremented once.
      *
      * @param  list<mixed>  $lines
-     * @param  array<string, int>  $over  requests past the buffer's cap, per signal
+     * @param  array<string, array<string, int>>  $over  requests past the buffer's cap, per hour and signal
      */
     private function apply(array $lines, array $over, int $now): int
     {
@@ -683,13 +683,17 @@ final class Recorder
             $groups[$hour][$ip][] = $event;
         }
 
-        // Past the cap, only counted: towards this hour's totals.
-        $hour = gmdate('YmdH', $now);
+        // Past the cap, only counted: towards the totals of their hour.
+        foreach ($over as $hour => $signals) {
+            if (! preg_match('/^\d{10}$/', (string) $hour)) {
+                continue;
+            }
 
-        foreach ($over as $signal => $n) {
-            if (in_array($signal, self::SIGNALS, true) && $n > 0) {
-                $totals["{$hour}:t:{$signal}"] = ($totals["{$hour}:t:{$signal}"] ?? 0) + $n;
-                $count += $n;
+            foreach ($signals as $signal => $n) {
+                if (in_array($signal, self::SIGNALS, true) && $n > 0) {
+                    $totals["{$hour}:t:{$signal}"] = ($totals["{$hour}:t:{$signal}"] ?? 0) + $n;
+                    $count += $n;
+                }
             }
         }
 
@@ -789,7 +793,7 @@ final class Recorder
         $host = $host === null || $host === '' ? null : strtolower(substr($host, 0, 100));
         $userAgent = $userAgent === null || $userAgent === '' ? null : substr($userAgent, 0, 200);
 
-        return $this->buffer->append([$kind, $ip, $signal, self::method($method), substr($path, 0, 200), $status, $host, $userAgent, $proxied, $category, $hash, $at, $country], $signal, $keep);
+        return $this->buffer->append([$kind, $ip, $signal, self::method($method), substr($path, 0, 200), $status, $host, $userAgent, $proxied, $category, $hash, $at, $country], $signal, $keep, $at);
     }
 
     /**
