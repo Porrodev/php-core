@@ -62,8 +62,8 @@ function recorder(?array &$cache = null, ?Closure $safelisted = null, array $thr
         function (string $key, mixed $value, int $ttl) use (&$cache) {
             $cache[$key] = $value;
         },
-        function (string $key, int $ttl) use (&$cache) {
-            $cache[$key] = ($cache[$key] ?? 0) + 1;
+        function (string $key, int $ttl, int $by = 1) use (&$cache) {
+            $cache[$key] = ($cache[$key] ?? 0) + $by;
         },
         new ProtectedRanges,
         'app-key',
@@ -466,6 +466,160 @@ describe('probes', function () {
 });
 
 describe('recorder', function () {
+    it('keeps any method a client invents as OTHER, so a record can’t grow on it', function () {
+        $recorder = recorder($cache);
+
+        foreach (range(1, 50) as $i) {
+            $recorder->record('185.220.101.4', Recorder::NOT_FOUND, str_repeat('X', 4000).$i, '/x', 404, at: ACTIVITY_NOW + $i);
+        }
+        $recorder->record('185.220.101.4', Recorder::NOT_FOUND, 'get', '/x', 404, at: ACTIVITY_NOW + 60);
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 120);
+
+        expect($ip->methods)->toBe(['OTHER' => 50, 'GET' => 1])
+            ->and($ip->recent[1][0])->toBe('OTHER')
+            ->and(strlen(serialize($cache)))->toBeLessThan(20_000);
+    });
+
+    it('adds no more IP records once an hour’s index is full, but still counts them', function () {
+        $recorder = recorder($cache);
+
+        foreach (range(1, Recorder::INDEX_CAP + 20) as $i) {
+            $recorder->record('45.'.intdiv($i, 250).'.'.($i % 250).'.9', Recorder::NOT_FOUND, 'GET', '/x', 404, at: ACTIVITY_NOW);
+        }
+
+        $records = array_filter(array_keys($cache), fn ($k) => str_contains($k, ':ip:'));
+
+        expect($records)->toHaveCount(Recorder::INDEX_CAP)
+            ->and($recorder->summary(24, ACTIVITY_NOW + 60)->totals[Recorder::NOT_FOUND])->toBe(Recorder::INDEX_CAP + 20);
+    });
+
+    it('writes one request in ten past the flood mark, counted ten times', function () {
+        $cache = [];
+        $writes = 0;
+        $draws = 0;
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache, &$writes) {
+                $cache[$key] = $value;
+                $writes++;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            random: function () use (&$draws) {
+                return ++$draws % Recorder::FLOOD_SAMPLE === 0 ? 1 : 2;
+            },
+        );
+
+        foreach (range(1, Recorder::FLOOD_AFTER) as $i) {
+            $recorder->turnedAway('185.220.101.4', 'GET', '/', at: ACTIVITY_NOW);
+        }
+        $before = $writes;
+
+        foreach (range(1, 1000) as $i) {
+            $recorder->turnedAway('185.220.101.4', 'GET', '/', at: ACTIVITY_NOW);
+        }
+
+        $ip = $recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60);
+
+        expect($writes - $before)->toBe(100)
+            ->and($ip->turnedAway)->toBe(Recorder::FLOOD_AFTER + 1000)
+            ->and($ip->estimated)->toBeTrue();
+    });
+
+    it('writes one in a hundred once a flood is ten times past the mark', function () {
+        $cache = [];
+        $writes = 0;
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache, &$writes) {
+                $cache[$key] = $value;
+                $writes++;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            random: fn (int $min, int $max) => $max === 100 ? 1 : 2,
+        );
+        $hour = gmdate('YmdH', ACTIVITY_NOW);
+        $cache[Recorder::PREFIX."{$hour}:ip:185.220.101.4"] = ['q' => Recorder::FLOOD_AFTER * Recorder::FLOOD_SAMPLE, 'b' => 3000, 't' => ACTIVITY_NOW];
+
+        $recorder->turnedAway('185.220.101.4', 'GET', '/', at: ACTIVITY_NOW);
+
+        expect($recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60)->turnedAway)->toBe(3100);
+    });
+
+    it('reads key by key when a batch read fails', function () {
+        $cache = [];
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache) {
+                $cache[$key] = $value;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            many: fn () => throw new RuntimeException('down'),
+        );
+        $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', '/.env', 404, at: ACTIVITY_NOW);
+
+        expect($recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60)->requests)->toBe(1);
+    });
+
+    it('drops IPs from the watch list once their activity has gone', function () {
+        $recorder = recorder($cache);
+
+        foreach ([0, Recorder::TTL + 100] as $offset) {
+            $ip = $offset ? '185.220.101.5' : '185.220.101.4';
+
+            foreach (['/.env', '/.git/config', '/backup.zip'] as $path) {
+                $recorder->record($ip, Recorder::PROBE, 'GET', $path, 404, at: ACTIVITY_NOW + $offset);
+            }
+        }
+
+        expect(array_keys($cache[Recorder::PREFIX.'watch']))->toBe(['185.220.101.5']);
+    });
+
+    it('reads an IP’s 48 hours in one go when the store can', function () {
+        $cache = [];
+        $calls = 0;
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache) {
+                $cache[$key] = $value;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            many: function (array $keys) use (&$cache, &$calls) {
+                $calls++;
+
+                return array_combine($keys, array_map(fn ($k) => $cache[$k] ?? null, $keys));
+            },
+        );
+        $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', '/.env', 404, at: ACTIVITY_NOW);
+
+        expect($recorder->history('185.220.101.4', 48, ACTIVITY_NOW + 60)->requests)->toBe(1)
+            ->and($calls)->toBe(1);
+    });
+
     it('sums up everything an IP did, for its page', function () {
         $recorder = recorder($cache);
 

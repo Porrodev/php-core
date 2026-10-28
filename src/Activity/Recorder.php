@@ -50,6 +50,19 @@ final class Recorder
     /** Flagged IPs whose every request is counted, for the IP page. */
     public const WATCH_CAP = 500;
 
+    /**
+     * Past this many requests from one IP in an hour, only one in
+     * FLOOD_SAMPLE is written, counted FLOOD_SAMPLE times: a flood costs a
+     * tenth of the writes, and its counts become close estimates. Ten
+     * times further on, one in a hundred.
+     */
+    public const FLOOD_AFTER = 300;
+
+    public const FLOOD_SAMPLE = 10;
+
+    /** Methods kept by name; anything else a client sends is "OTHER". */
+    public const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE', 'CONNECT'];
+
     /** How much each signal adds to an IP's score. */
     public const WEIGHTS = [self::PROBE => 5, self::LOGIN_FAILED => 3, self::POST_FLOOD => 2, self::NOT_FOUND => 1];
 
@@ -71,10 +84,12 @@ final class Recorder
     /**
      * @param  Closure(string $key): mixed  $get
      * @param  Closure(string $key, mixed $value, int $ttl): mixed  $put
-     * @param  Closure(string $key, int $ttl): mixed  $increment  adds 1, creating the key with $ttl when missing
+     * @param  Closure(string $key, int $ttl, int $by): mixed  $increment  adds $by (1 unless sampling), creating the key with $ttl when missing
      * @param  string  $secret  the app's own key, so username hashes can't be matched elsewhere
      * @param  (Closure(string $ip): bool)|null  $safelisted
      * @param  array<string, int>  $thresholds
+     * @param  (Closure(list<string> $keys): array<string, mixed>)|null  $many  reads several keys in one go, when the store can
+     * @param  (Closure(int $min, int $max): int)|null  $random
      */
     public function __construct(
         private readonly Closure $get,
@@ -84,9 +99,14 @@ final class Recorder
         private readonly string $secret,
         private readonly ?Closure $safelisted = null,
         array $thresholds = [],
+        private readonly ?Closure $many = null,
+        ?Closure $random = null,
     ) {
         $this->thresholds = $thresholds + self::THRESHOLDS;
+        $this->random = $random ?? fn (int $min, int $max) => random_int($min, $max);
     }
+
+    private readonly Closure $random;
 
     /**
      * @param  string|null  $country  two-letter code the edge already knows, e.g. Cloudflare's CF-IPCountry
@@ -115,13 +135,20 @@ final class Recorder
                 return;
             }
 
-            ($this->increment)($this->key("{$hour}:t:{$signal}"), self::TTL);
+            $record = $this->read("{$hour}:ip:{$ip}");
+            $weight = $this->weight($record);
+
+            if ($weight === 0) {
+                return;
+            }
+
+            ($this->increment)($this->key("{$hour}:t:{$signal}"), self::TTL, $weight);
 
             if ($this->safelisted !== null && ($this->safelisted)($ip)) {
                 return;
             }
 
-            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country), $userAgent, compact('category', 'host', 'proxied'));
+            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country), $userAgent, compact('category', 'host', 'proxied'), $record, $weight);
         } catch (Throwable) {
             // Fail open.
         }
@@ -169,11 +196,19 @@ final class Recorder
         $paths = [];
         $hourly = [];
         $recent = [];
-        [$first, $last, $flagged, $country] = [PHP_INT_MAX, 0, false, null];
+        [$first, $last, $flagged, $country, $estimated] = [PHP_INT_MAX, 0, false, null, false];
+
+        $keys = [];
 
         for ($i = $hours - 1; $i >= 0; $i--) {
             $hour = gmdate('YmdH', $now - $i * 3600);
-            $record = $this->read("{$hour}:ip:{$ip}");
+            $keys[$hour] = "{$hour}:ip:{$ip}";
+        }
+
+        $records = $this->readMany($keys);
+
+        foreach ($keys as $hour => $key) {
+            $record = $records[$hour];
 
             if ($record === []) {
                 continue;
@@ -206,6 +241,7 @@ final class Recorder
             $last = max($last, (int) ($record['t'] ?? 0));
             $country = $record['cc'] ?? $country;
             $flagged = $flagged || $this->crosses($record);
+            $estimated = $estimated || ! empty($record['e']);
             $recent = array_merge($record['r'] ?? [], $recent);
         }
 
@@ -242,6 +278,7 @@ final class Recorder
             viaCloudflare: $sum['edge'],
             direct: $sum['direct'],
             country: is_string($country) ? $country : null,
+            estimated: $estimated,
         );
     }
 
@@ -376,7 +413,13 @@ final class Recorder
                 return;
             }
 
-            $this->touch(gmdate('YmdH', $at), $ip, null, $method, $path, $status, null, $at, null, $userAgent, compact('host', 'proxied', 'blocked'));
+            $hour = gmdate('YmdH', $at);
+            $record = $this->read("{$hour}:ip:{$ip}");
+            $weight = $this->weight($record);
+
+            if ($weight > 0) {
+                $this->touch($hour, $ip, null, $method, $path, $status, null, $at, null, $userAgent, compact('host', 'proxied', 'blocked'), $record, $weight);
+            }
         } catch (Throwable) {
             // Fail open.
         }
@@ -384,56 +427,74 @@ final class Recorder
 
     /**
      * @param  array{category?: ?string, host?: ?string, proxied?: ?bool, blocked?: bool}  $more
+     * @param  array<string, mixed>  $record  this hour's record for the IP, as already read
+     * @param  int  $weight  how many requests this write stands for (see FLOOD_AFTER)
      */
-    private function touch(string $hour, string $ip, ?string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country, ?string $userAgent = null, array $more = []): void
+    private function touch(string $hour, string $ip, ?string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country, ?string $userAgent, array $more, array $record, int $weight): void
     {
         $key = "{$hour}:ip:{$ip}";
-        $record = $this->read($key);
         $isNew = $record === [];
-        $slot = (int) (((int) gmdate('i', $at)) / 10);
-        $method = strtoupper($method);
-        $path = substr($path, 0, 200);
+        $index = [];
 
-        if ($signal !== null) {
-            $record['c'][$signal] = ($record['c'][$signal] ?? 0) + 1;
-            $record['s'][$slot][$signal] = ($record['s'][$slot][$signal] ?? 0) + 1;
+        // A full hour (a botnet, or rotating IPv6) still counts towards the
+        // totals, but adds no more records.
+        if ($isNew) {
+            $index = $this->read("{$hour}:i");
+
+            if (count($index) >= self::INDEX_CAP && ! in_array($ip, $index, true)) {
+                return;
+            }
         }
 
-        $record['q'] = ($record['q'] ?? array_sum($record['c'] ?? []) - ($signal !== null ? 1 : 0)) + 1;
+        $slot = (int) (((int) gmdate('i', $at)) / 10);
+        $method = self::method($method);
+        $path = substr($path, 0, 200);
+        $w = $weight;
+
+        if ($signal !== null) {
+            $record['c'][$signal] = ($record['c'][$signal] ?? 0) + $w;
+            $record['s'][$slot][$signal] = ($record['s'][$slot][$signal] ?? 0) + $w;
+        }
+
+        $record['q'] = ($record['q'] ?? array_sum($record['c'] ?? []) - ($signal !== null ? $w : 0)) + $w;
         $record['f'] = min((int) ($record['f'] ?? $at), $at);
-        $record['mt'][$method] = ($record['mt'][$method] ?? 0) + 1;
+        $record['mt'][$method] = ($record['mt'][$method] ?? 0) + $w;
+
+        if ($w > 1) {
+            $record['e'] = true;
+        }
 
         if (! empty($more['blocked'])) {
-            $record['b'] = ($record['b'] ?? 0) + 1;
+            $record['b'] = ($record['b'] ?? 0) + $w;
         }
 
         if ($status > 0) {
             $class = intdiv($status, 100).'xx';
-            $record['sc'][$class] = ($record['sc'][$class] ?? 0) + 1;
+            $record['sc'][$class] = ($record['sc'][$class] ?? 0) + $w;
         }
 
         if (isset($more['proxied'])) {
             $via = $more['proxied'] ? 'edge' : 'direct';
-            $record['vx'][$via] = ($record['vx'][$via] ?? 0) + 1;
+            $record['vx'][$via] = ($record['vx'][$via] ?? 0) + $w;
         }
 
-        if (! empty($more['category'])) {
-            $record['pk'][$more['category']] = ($record['pk'][$more['category']] ?? 0) + 1;
+        if (! empty($more['category']) && isset(Probes::LABELS[$more['category']])) {
+            $record['pk'][$more['category']] = ($record['pk'][$more['category']] ?? 0) + $w;
         }
 
         if (! empty($more['host'])) {
-            $record['hs'] = self::bump($record['hs'] ?? [], strtolower(substr((string) $more['host'], 0, 100)), self::HOSTS_CAP);
+            $record['hs'] = self::bump($record['hs'] ?? [], strtolower(substr((string) $more['host'], 0, 100)), self::HOSTS_CAP, $w);
         }
 
         if ($userAgent !== null && $userAgent !== '') {
-            $record['ag'] = self::bump($record['ag'] ?? [], substr($userAgent, 0, 200), self::AGENTS_CAP);
+            $record['ag'] = self::bump($record['ag'] ?? [], substr($userAgent, 0, 200), self::AGENTS_CAP, $w);
         }
 
         // Each path's count and last status; past the cap, only counted.
         if (isset($record['pc'][$path]) || count($record['pc'] ?? []) < self::PATHS_CAP) {
-            $record['pc'][$path] = [($record['pc'][$path][0] ?? 0) + 1, $status];
+            $record['pc'][$path] = [($record['pc'][$path][0] ?? 0) + $w, $status];
         } else {
-            $record['po'] = ($record['po'] ?? 0) + 1;
+            $record['po'] = ($record['po'] ?? 0) + $w;
         }
 
         $record['m'] = $method;
@@ -465,9 +526,7 @@ final class Recorder
         }
 
         if ($isNew) {
-            $index = $this->read("{$hour}:i");
-
-            if (count($index) < self::INDEX_CAP && ! in_array($ip, $index, true)) {
+            if (! in_array($ip, $index, true)) {
                 $index[] = $ip;
                 ($this->put)($this->key("{$hour}:i"), $index, self::TTL);
             }
@@ -537,6 +596,8 @@ final class Recorder
             return;
         }
 
+        // Kept no longer than the activity it came from.
+        $list = array_filter($list, fn ($since) => (int) $since > $at - self::TTL);
         $list[$ip] = $at;
         arsort($list);
         ($this->put)($this->key('watch'), array_slice($list, 0, self::WATCH_CAP, true), self::TTL);
@@ -549,16 +610,67 @@ final class Recorder
      * @param  array<string, int>  $map
      * @return array<string, int>
      */
-    private static function bump(array $map, string $key, int $cap): array
+    private static function bump(array $map, string $key, int $cap, int $by = 1): array
     {
         if (! isset($map[$key]) && count($map) >= $cap) {
             asort($map);
             unset($map[array_key_first($map)]);
         }
 
-        $map[$key] = ($map[$key] ?? 0) + 1;
+        $map[$key] = ($map[$key] ?? 0) + $by;
 
         return $map;
+    }
+
+    /**
+     * How many requests this write stands for: 1, or once an IP is past
+     * FLOOD_AFTER this hour, FLOOD_SAMPLE for one request in FLOOD_SAMPLE
+     * and 0 (skip) for the rest.
+     *
+     * @param  array<string, mixed>  $record
+     */
+    private function weight(array $record): int
+    {
+        $requests = (int) ($record['q'] ?? 0);
+
+        if ($requests < self::FLOOD_AFTER) {
+            return 1;
+        }
+
+        $sample = $requests < self::FLOOD_AFTER * self::FLOOD_SAMPLE ? self::FLOOD_SAMPLE : self::FLOOD_SAMPLE ** 2;
+
+        return ($this->random)(1, $sample) === 1 ? $sample : 0;
+    }
+
+    /**
+     * A known method by name, anything else as "OTHER": clients can send
+     * any token, and Craft honours X-Http-Method-Override.
+     */
+    public static function method(string $method): string
+    {
+        $method = strtoupper(substr($method, 0, 10));
+
+        return in_array($method, self::METHODS, true) ? $method : 'OTHER';
+    }
+
+    /**
+     * @param  array<string, string>  $keys  name => key
+     * @return array<string, array<mixed>> name => value, [] when missing
+     */
+    private function readMany(array $keys): array
+    {
+        if ($this->many === null) {
+            return array_map(fn (string $key) => $this->read($key), $keys);
+        }
+
+        try {
+            $values = ($this->many)(array_values(array_map(fn (string $key) => $this->key($key), $keys)));
+        } catch (Throwable) {
+            // One at a time, rather than an empty history.
+            return array_map(fn (string $key) => $this->read($key), $keys);
+        }
+
+        return array_map(fn (string $key) => is_array($values[$this->key($key)] ?? null) ? $values[$this->key($key)] : [], $keys);
     }
 
     /**
