@@ -43,6 +43,8 @@ final class IpActivity
         public readonly int $viaCloudflare,
         public readonly int $direct,
         public readonly ?string $country = null,
+        // Past Recorder::FLOOD_AFTER requests an hour, counts are sampled.
+        public readonly bool $estimated = false,
     ) {}
 
     /**
