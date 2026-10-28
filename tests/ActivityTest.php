@@ -1082,3 +1082,7 @@ describe('a stable nginx path on zero-downtime sites', function () {
             ->toBe('/home/forge/example.com/storage/porro/nginx-blocklist.conf');
     });
 });
+
+it('names every probe category in words', function () {
+    expect(array_keys(Probes::LABELS))->toEqualCanonicalizing(array_keys(Probes::PATTERNS));
+});
