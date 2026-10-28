@@ -34,6 +34,20 @@ final class Generator
 
     public const CRS_USER_AGENTS = 'scanners-user-agents.data';
 
+    /**
+     * Limits on what a source can hand us, well above today's sizes (CRS
+     * files have about 1,200 entries, 90 days of KEV about 100 CVEs). Past
+     * an entry or CVE limit the run fails, since the source has changed
+     * shape; over-long paths and lines are dropped.
+     */
+    public const MAX_ENTRIES = 5000;
+
+    public const MAX_CVES = 400;
+
+    public const MAX_TEMPLATE_PATHS = 50;
+
+    public const MAX_PATH_LENGTH = 1024;
+
     public function __construct(
         private readonly Http $http,
         private readonly \DateTimeImmutable $today,
@@ -67,7 +81,7 @@ final class Generator
 
         foreach (self::CRS_PATH_FILES as $file => $default) {
             $url = $this->blobUrl(self::CRS_REPO, $tag, "rules/{$file}");
-            $lines = CrsDataFile::parse($this->fetch($this->rawUrl(self::CRS_REPO, $tag, "rules/{$file}")));
+            $lines = $this->lines($file, $this->fetch($this->rawUrl(self::CRS_REPO, $tag, "rules/{$file}")));
             $covered = 0;
 
             foreach ($lines as $line) {
@@ -90,7 +104,7 @@ final class Generator
             $files[$file] = ['source_url' => $url, 'entries' => count($lines), 'covered' => $covered];
         }
 
-        $agents = CrsDataFile::parse($this->fetch($this->rawUrl(self::CRS_REPO, $tag, 'rules/'.self::CRS_USER_AGENTS)));
+        $agents = $this->lines(self::CRS_USER_AGENTS, $this->fetch($this->rawUrl(self::CRS_REPO, $tag, 'rules/'.self::CRS_USER_AGENTS)));
 
         return [
             'tag' => $tag,
@@ -131,7 +145,10 @@ final class Generator
                 continue;
             }
 
-            $recent++;
+            if (++$recent > self::MAX_CVES) {
+                throw new \RuntimeException('More than '.self::MAX_CVES.' KEV CVEs in '.self::KEV_WINDOW_DAYS.' days; check the feed');
+            }
+
             $file = "http/cves/{$m[1]}/{$cve}.yaml";
             $yaml = $this->http->get($this->rawUrl(self::NUCLEI_REPO, $ref, $file));
 
@@ -141,7 +158,9 @@ final class Generator
                 continue;
             }
 
-            foreach (NucleiTemplate::paths($yaml) as $path) {
+            $paths = array_filter(NucleiTemplate::paths($yaml), fn (string $p) => strlen($p) <= self::MAX_PATH_LENGTH);
+
+            foreach (array_slice($paths, 0, self::MAX_TEMPLATE_PATHS) as $path) {
                 if ($this->probes->match($path) !== null) {
                     $covered++;
 
@@ -177,6 +196,23 @@ final class Generator
             'entries' => $this->dedupe($entries),
             'no_template' => $noTemplate,
         ];
+    }
+
+    /**
+     * A CRS file's entries, without over-long lines, failing past the cap.
+     *
+     * @return list<string>
+     */
+    private function lines(string $file, string $contents): array
+    {
+        $lines = CrsDataFile::parse($contents);
+
+        if (count($lines) > self::MAX_ENTRIES) {
+            throw new \RuntimeException("CRS {$file} has more than ".self::MAX_ENTRIES.' entries; check the release');
+        }
+
+        // Under, not up to: toPath() adds a slash.
+        return array_values(array_filter($lines, fn (string $line) => strlen($line) < self::MAX_PATH_LENGTH));
     }
 
     /**

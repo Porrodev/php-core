@@ -3,62 +3,102 @@ name: probe sources
 # Refreshes resources/probes/candidates.json from OWASP CRS, CISA KEV and
 # nuclei templates, and opens (or updates) one pull request for a person
 # to review. It never changes Probes::PATTERNS and never merges anything.
+#
+# Two jobs, so the code that downloads and runs things never holds a
+# write token: "generate" is read-only, and "pull-request" runs no PHP or
+# Composer, only git and gh on the one file "generate" produced.
 
 on:
   schedule:
     - cron: '23 6 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: probe-sources
   cancel-in-progress: false
 
-env:
-  BRANCH: probe-sources/update
-
 jobs:
-  sync:
+  generate:
+    name: Generate and test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
-          # A PAT or app token lets the tests workflow run on the PR too;
-          # PRs opened with the default token don't trigger other workflows.
-          token: ${{ secrets.PROBE_SOURCES_TOKEN || github.token }}
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'
           extensions: sodium
           coverage: none
 
-      - run: composer update --prefer-dist --no-interaction --no-progress
+      - run: composer update --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
 
       - name: Generate candidates
-        run: php tools/probe-sources.php --summary="$RUNNER_TEMP/pr-body.md"
+        run: php tools/probe-sources.php --summary="$RUNNER_TEMP/probe-sources/pr-body.md"
         env:
+          # Read-only, and only for GitHub's API rate limit.
           GITHUB_TOKEN: ${{ github.token }}
 
       # Includes the must-match and must-not-match probe tests.
       - name: Test
         run: vendor/bin/pest
 
+      - name: Collect
+        run: cp resources/probes/candidates.json "$RUNNER_TEMP/probe-sources/"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probe-sources
+          path: ${{ runner.temp }}/probe-sources/
+          retention-days: 7
+          if-no-files-found: error
+
+  pull-request:
+    name: Open the PR
+    needs: generate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: probe-sources/update
+      # A fine-grained PAT scoped to this repo lets tests.yml run on the
+      # PR too; PRs opened with the default token don't trigger workflows.
+      GH_TOKEN: ${{ secrets.PROBE_SOURCES_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: probe-sources
+          path: ${{ runner.temp }}/probe-sources
+
       - name: Open or update the pull request
-        env:
-          GH_TOKEN: ${{ secrets.PROBE_SOURCES_TOKEN || github.token }}
         run: |
-          if git diff --quiet -- resources/probes && [ -z "$(git ls-files --others --exclude-standard resources/probes)" ]; then
+          src="$RUNNER_TEMP/probe-sources"
+
+          # Only ever this one file, and only if it is valid JSON.
+          jq -e '.crs.entries and .kev.entries' "$src/candidates.json" > /dev/null
+          mkdir -p resources/probes
+          cp "$src/candidates.json" resources/probes/candidates.json
+
+          if [ -z "$(git status --porcelain -- resources/probes)" ]; then
             echo "Candidates unchanged, nothing to open."
             exit 0
           fi
 
           title="Probe sources: $(date -u +%Y-%m-%d)"
 
+          gh auth setup-git
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -C "$BRANCH"
@@ -69,7 +109,7 @@ jobs:
           number=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number')
 
           if [ -n "$number" ]; then
-            gh pr edit "$number" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md"
+            gh pr edit "$number" --title "$title" --body-file "$src/pr-body.md"
           else
-            gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md"
+            gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$src/pr-body.md"
           fi

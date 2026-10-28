@@ -120,6 +120,11 @@ Do the moves in their own PR. Merge the candidates PR unchanged: the committed f
 
 Run it by hand with `php tools/probe-sources.php --summary=body.md`. A `GITHUB_TOKEN` in the environment lifts GitHub's API rate limit.
 
+The workflow has two jobs. The job that downloads the sources and runs PHP holds only a read-only token. The job that opens the PR runs no PHP or Composer. It commits only `candidates.json`. For it to open PRs, do one of these:
+
+- Turn on "Allow GitHub Actions to create and approve pull requests" under Settings → Actions → General.
+- Add a `PROBE_SOURCES_TOKEN` secret. Make it a **fine-grained personal access token** scoped to `Porrodev/php-core` only, with Contents and Pull requests set to Read and write and nothing else, and a short expiry. With this token, `tests.yml` also runs on the PR. PRs opened with the default token don't trigger other workflows.
+
 ## Developing
 
 ```bash

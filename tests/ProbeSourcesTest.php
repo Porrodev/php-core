@@ -7,6 +7,7 @@ use Porro\Tools\ProbeSources\CrsDataFile;
 use Porro\Tools\ProbeSources\Generator;
 use Porro\Tools\ProbeSources\Http;
 use Porro\Tools\ProbeSources\NucleiTemplate;
+use Porro\Tools\ProbeSources\StreamHttp;
 
 /**
  * Answers the generator's requests from tests/fixtures/probe-sources, and
@@ -148,6 +149,56 @@ describe('probe sources: generator', function () {
             'https://api.github.com/repos/coreruleset/coreruleset/releases/latest' => '{"tag_name": "../main"}',
         ]))->crs();
     })->throws(RuntimeException::class, 'release tag');
+});
+
+describe('probe sources: limits', function () {
+    it('fails when a CRS file has far more entries than expected', function () {
+        $huge = implode("\n", array_map(fn ($i) => "file{$i}.txt", range(1, Generator::MAX_ENTRIES + 1)));
+
+        probeSourcesGenerator(probeSourcesHttp([
+            'https://raw.githubusercontent.com/coreruleset/coreruleset/v4.30.0/rules/restricted-files.data' => $huge,
+        ]))->crs();
+    })->throws(RuntimeException::class, 'more than 5000 entries');
+
+    it('drops over-long CRS lines and template paths', function () {
+        $long = str_repeat('a', Generator::MAX_PATH_LENGTH);
+        $template = "info:\n  name: Long\nhttp:\n  - path:\n      - \"{{BaseURL}}/{$long}\"\n      - \"{{BaseURL}}/short/one\"\n";
+        $generator = probeSourcesGenerator(probeSourcesHttp([
+            'https://raw.githubusercontent.com/coreruleset/coreruleset/v4.30.0/rules/restricted-files.data' => "{$long}\nok.txt\n",
+            'https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/v10.5.1/http/cves/2026/CVE-2026-0001.yaml' => $template,
+        ]));
+
+        expect(array_column($generator->crs()['entries'], 'path'))->not->toContain('/'.$long)->toContain('/ok.txt')
+            ->and(array_column($generator->kev()['entries'], 'path'))->toBe(['/short/one']);
+    });
+
+    it('fails when KEV lists far more recent CVEs than expected', function () {
+        $vulns = array_map(fn ($i) => ['cveID' => "CVE-2026-{$i}", 'vendorProject' => 'X', 'product' => 'Y', 'dateAdded' => '2026-10-01'], range(10000, 10000 + Generator::MAX_CVES));
+
+        probeSourcesGenerator(probeSourcesHttp([
+            Generator::KEV_URL => json_encode(['catalogVersion' => '2026.10.27', 'vulnerabilities' => $vulns]),
+        ]))->kev();
+    })->throws(RuntimeException::class, 'KEV CVEs');
+
+    it('sends the GitHub token only to the GitHub host first asked for', function () {
+        expect(StreamHttp::sendsToken('https://api.github.com/repos/x/y', 'api.github.com'))->toBeTrue()
+            ->and(StreamHttp::sendsToken('https://raw.githubusercontent.com/x', 'raw.githubusercontent.com'))->toBeTrue()
+            // A redirect, even to another GitHub host, drops it.
+            ->and(StreamHttp::sendsToken('https://raw.githubusercontent.com/x', 'api.github.com'))->toBeFalse()
+            ->and(StreamHttp::sendsToken('https://objects.githubusercontent.com/x', 'objects.githubusercontent.com'))->toBeFalse()
+            ->and(StreamHttp::sendsToken('https://www.cisa.gov/feed.json', 'www.cisa.gov'))->toBeFalse();
+    });
+
+    it('follows only absolute or same-host redirects', function () {
+        expect(StreamHttp::resolve('https://api.github.com/a', '/b'))->toBe('https://api.github.com/b')
+            ->and(StreamHttp::resolve('https://api.github.com/a', 'https://example.com/b'))->toBe('https://example.com/b');
+
+        StreamHttp::resolve('https://api.github.com/a', '//evil.example/b');
+    })->throws(RuntimeException::class, 'Refusing redirect');
+
+    it('refuses plain HTTP', function () {
+        (new StreamHttp)->get('http://example.com/');
+    })->throws(RuntimeException::class, 'HTTPS only');
 });
 
 describe('probe sources: categories', function () {

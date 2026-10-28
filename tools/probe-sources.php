@@ -31,6 +31,7 @@ if ($old === null || $changes->any()) {
 }
 
 if (isset($options['summary'])) {
+    @mkdir(dirname((string) $options['summary']), 0755, true);
     file_put_contents((string) $options['summary'], $changes->markdown());
 }
 
