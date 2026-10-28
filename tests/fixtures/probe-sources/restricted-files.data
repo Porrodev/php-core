@@ -1,0 +1,17 @@
+# Trimmed fixture in the shape of OWASP CRS rules/restricted-files.data.
+# Comment lines and blank lines are not entries.
+
+# Apache
+.htaccess
+.htpasswd
+# home level dotfiles
+.bash_
+.npmrc
+.env
+  .travis.yml  
+
+# duplicates are collapsed
+.htaccess
+/etc/shadow
+composer.json
+.ansible/vault

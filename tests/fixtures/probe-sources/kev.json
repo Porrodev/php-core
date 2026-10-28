@@ -1,0 +1,11 @@
+{
+  "title": "CISA Catalog of Known Exploited Vulnerabilities",
+  "catalogVersion": "2026.10.27",
+  "dateReleased": "2026-10-27T19:00:02.2307Z",
+  "count": 3,
+  "vulnerabilities": [
+    {"cveID": "CVE-2026-0001", "vendorProject": "Example", "product": "Gateway", "dateAdded": "2026-10-20"},
+    {"cveID": "CVE-2026-0002", "vendorProject": "Example", "product": "Router", "dateAdded": "2026-09-01"},
+    {"cveID": "CVE-2019-0003", "vendorProject": "Old", "product": "Thing", "dateAdded": "2022-01-10"}
+  ]
+}

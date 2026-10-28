@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A weekly workflow suggests new probe paths from OWASP CRS (Apache-2.0) and recent CISA KEV CVEs, using the matching nuclei templates (MIT). It writes them to `resources/probes/candidates.json` and opens a pull request for review. `Probes` itself only changes by hand. See "Reviewing probe candidates" in the README.
+
 ## 0.3.3 - 2026-10-28
 
 - Probes cover far more of what scanners look for, in named categories: `traversal`, `vcs`, `secrets`, `files`, `debug`, `webshell`, `wordpress`, `db_admin`, `infrastructure` (Docker, MLflow, Elasticsearch, cloud metadata), `appliance` (Fortinet, Ivanti, Citrix, PAN-OS, Cisco, F5, MOVEit and others with exploited CVEs), `java` and `exploit`. Every pattern is a fixed shape anchored where its target lives; generic words like `/v1/models`, `/shell`, `/script` or `/api/tags` are left out on purpose, and pinned by tests.

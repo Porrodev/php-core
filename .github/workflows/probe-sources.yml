@@ -1,0 +1,75 @@
+name: probe sources
+
+# Refreshes resources/probes/candidates.json from OWASP CRS, CISA KEV and
+# nuclei templates, and opens (or updates) one pull request for a person
+# to review. It never changes Probes::PATTERNS and never merges anything.
+
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: probe-sources
+  cancel-in-progress: false
+
+env:
+  BRANCH: probe-sources/update
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          # A PAT or app token lets the tests workflow run on the PR too;
+          # PRs opened with the default token don't trigger other workflows.
+          token: ${{ secrets.PROBE_SOURCES_TOKEN || github.token }}
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sodium
+          coverage: none
+
+      - run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Generate candidates
+        run: php tools/probe-sources.php --summary="$RUNNER_TEMP/pr-body.md"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Includes the must-match and must-not-match probe tests.
+      - name: Test
+        run: vendor/bin/pest
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.PROBE_SOURCES_TOKEN || github.token }}
+        run: |
+          if git diff --quiet -- resources/probes && [ -z "$(git ls-files --others --exclude-standard resources/probes)" ]; then
+            echo "Candidates unchanged, nothing to open."
+            exit 0
+          fi
+
+          title="Probe sources: $(date -u +%Y-%m-%d)"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git add resources/probes/candidates.json
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+
+          number=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number')
+
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md"
+          fi

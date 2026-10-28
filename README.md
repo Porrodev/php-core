@@ -103,6 +103,23 @@ Connectors describe the site's default database connection with `Database::descr
 
 The host, database name, user and credentials are never sent. If the connection can't be read, `database` is `null`.
 
+## Reviewing probe candidates
+
+Every Monday `.github/workflows/probe-sources.yml` runs `tools/probe-sources.php`. It refreshes `resources/probes/candidates.json` with paths that public sources list and `Probes` doesn't match yet, then opens or updates one pull request, "Probe sources: <date>". Each path has a suggested category and a link to where it came from. The sources are:
+
+- [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0), latest release: `restricted-files.data` and `lfi-os-files.data` for paths. It also brings `scanners-user-agents.data`, kept for a future user-agent check.
+- [CISA Known Exploited Vulnerabilities](https://www.cisa.gov/known-exploited-vulnerabilities-catalog): CVEs added in the last 90 days, with request paths from the matching [ProjectDiscovery nuclei template](https://github.com/projectdiscovery/nuclei-templates) (MIT).
+
+Nothing reads the candidates at runtime, and the workflow never edits `Probes::PATTERNS` or merges anything. A false positive flags real visitors and can suggest blocking them, so a person moves each path in by hand:
+
+1. **Check it against the must-not-match list** (`it('leaves real pages, routes and assets alone')` in `tests/ActivityTest.php`). Drop anything a Laravel, Craft or Statamic site could really serve: login and account pages (`/login`, `/user/sign_up`, `/customer/account/create`), short API routes (`/api/v1/...`), single generic words, and CRS entries that are substrings rather than paths (`.bash_`, `composer.json`). Expect to drop most candidates. CRS and nuclei describe attacks on every kind of server, not just these sites.
+2. **Add a test.** Put the probe in the must-match list with its category. Add the nearest real-site lookalike to the must-not-match list, e.g. `/shop/containers` next to `/containers/json`.
+3. **Move it into `Probes::PATTERNS`** as a fixed shape anchored where the target lives (`^/...\z`), in the category that fits. The suggestion is only a guess. Run `composer test`.
+
+Do the moves in their own PR. Merge the candidates PR unchanged: the committed file is the baseline, so the next one lists only what changed. Paths now matched by `Probes` drop out of the file on the next run.
+
+Run it by hand with `php tools/probe-sources.php --summary=body.md`. A `GITHUB_TOKEN` in the environment lifts GitHub's API rate limit.
+
 ## Developing
 
 ```bash

@@ -29,7 +29,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Porro\\Core\\Tests\\": "tests/"
+            "Porro\\Core\\Tests\\": "tests/",
+            "Porro\\Tools\\": "tools/"
         }
     },
     "scripts": {
