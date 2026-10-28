@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-10-28
+
+- `NginxBlocklist::stablePath()`: a path nginx can keep using across zero-downtime deploys. It follows a shared-storage symlink to its real path, or goes through the `current` symlink when the folder lives in the release.
+
 ## 0.3.0 - 2026-10-27
 
 - `Porro\Core\Activity`, for the connectors' suspicious activity and blocking panels. Everything stays on the site.
