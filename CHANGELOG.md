@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 - 2026-10-28
 
 - `Cloudflare::verify()` accepts account-owned tokens. Cloudflare's user endpoint calls them invalid, so it checks them again at their account's endpoint.
 - An unknown token now gets its own message: check it's the token itself, not its ID or the Global API Key. Quotes and spaces pasted around the token are ignored.
