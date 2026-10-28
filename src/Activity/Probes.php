@@ -79,6 +79,22 @@ final class Probes
     /** Categories that leak something when the site answers 2xx. */
     public const EXPOSING = [self::SECRETS, self::VCS];
 
+    /** What each category's probes were after, in words, for the IP page. */
+    public const LABELS = [
+        self::TRAVERSAL => 'Server files, by path traversal',
+        self::VCS => 'Version control (.git)',
+        self::SECRETS => 'Secrets: .env, keys, database dumps',
+        self::FILES => 'Deploy and editor config',
+        self::DEBUG => 'Debug pages and logs',
+        self::WEBSHELL => 'Web shells left by others',
+        self::WORDPRESS => 'WordPress',
+        self::DB_ADMIN => 'Database admin tools',
+        self::INFRASTRUCTURE => 'Exposed services: Docker, MLflow, cloud metadata',
+        self::APPLIANCE => 'VPNs, firewalls and enterprise servers',
+        self::JAVA => 'Java servers',
+        self::EXPLOIT => 'Known PHP exploits',
+    ];
+
     /** @var list<string> */
     private readonly array $served;
 
