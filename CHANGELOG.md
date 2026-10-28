@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `Cloudflare::verify()` accepts account-owned tokens. Cloudflare's user endpoint calls them invalid, so it checks them again at their account's endpoint.
+- An unknown token now gets its own message: check it's the token itself, not its ID or the Global API Key. Quotes and spaces pasted around the token are ignored.
+- The permissions are named as Cloudflare's dashboard shows them: Zone WAF Rules: Edit and Zone: Read on the domain, Account Rule Lists: Edit on the account (`Cloudflare::PERMISSIONS`).
+
 ## 0.3.1 - 2026-10-28
 
 - `NginxBlocklist::stablePath()`: a path nginx can keep using across zero-downtime deploys. It follows a shared-storage symlink to its real path, or goes through the `current` symlink when the folder lives in the release.

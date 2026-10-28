@@ -19,7 +19,9 @@ use Throwable;
  * The rule is added next to the zone's existing custom rules, never by
  * replacing the phase's ruleset, which would delete the client's own.
  *
- * Token permissions: Account Filter Lists Edit, Zone WAF Edit, Zone Read.
+ * Token permissions: Zone WAF Rules Edit and Zone Read on the site's
+ * domain, and Account Rule Lists Edit on the account. User tokens and
+ * account-owned tokens both work.
  */
 final class Cloudflare
 {
@@ -36,19 +38,28 @@ final class Cloudflare
     /** Polls of an add or delete before giving up; a second apart. */
     public const POLLS = 30;
 
+    public const PERMISSIONS = 'Zone WAF Rules: Edit and Zone: Read on the site’s domain, and Account Rule Lists: Edit on the account';
+
+    /** Cloudflare's error code for a token it doesn't recognise. */
+    private const UNKNOWN_TOKEN = 1000;
+
     private readonly Closure $sleep;
+
+    private readonly string $token;
 
     /**
      * @param  Closure(string $method, string $url, array<string, string> $headers, string|null $body, int $timeout, int $maxBytes): array{0: int, 1: string}  $http
      * @param  (Closure(int $seconds): void)|null  $sleep
      */
     public function __construct(
-        private readonly string $token,
+        string $token,
         private readonly Closure $http,
         ?Closure $sleep = null,
         private readonly int $timeout = 15,
     ) {
         $this->sleep = $sleep ?? fn (int $seconds) => sleep($seconds);
+        // Pasted with quotes or a trailing space, it'd be refused.
+        $this->token = trim($token, " \t\n\r\"'");
     }
 
     /**
@@ -56,11 +67,37 @@ final class Cloudflare
      */
     public function verify(): void
     {
-        $result = $this->request('GET', '/user/tokens/verify');
+        try {
+            $result = $this->request('GET', '/user/tokens/verify');
+        } catch (CloudflareError $e) {
+            // An account-owned token is only known to its account's endpoint,
+            // and the user one calls it unknown. Zone Read finds the account.
+            if ($e->cloudflareCode !== self::UNKNOWN_TOKEN || ! is_string($account = $this->anyAccount())) {
+                throw $e;
+            }
+
+            $result = $this->request('GET', "/accounts/{$account}/tokens/verify");
+        }
 
         if (($result['status'] ?? null) !== 'active') {
-            throw new CloudflareError('This Cloudflare token isn’t active. Create a new one with the permissions listed.');
+            throw new CloudflareError('This Cloudflare token isn’t active. Create a new one with '.self::PERMISSIONS.'.');
         }
+    }
+
+    /**
+     * The account of any zone this token can read, or null if it can't.
+     */
+    private function anyAccount(): ?string
+    {
+        try {
+            $zones = $this->request('GET', '/zones?per_page=1');
+        } catch (CloudflareError) {
+            return null;
+        }
+
+        $account = is_array($zones[0] ?? null) ? ($zones[0]['account']['id'] ?? null) : null;
+
+        return is_string($account) && $account !== '' ? $account : null;
     }
 
     /**
@@ -403,7 +440,8 @@ final class Cloudflare
             throw new CloudflareError(
                 match (true) {
                     $status === 0 => 'Couldn’t reach Cloudflare.',
-                    $status === 401, $status === 403 => 'Cloudflare refused the token'.(isset($error['message']) ? ": {$error['message']}" : '').'. Check it has Account Filter Lists Edit, Zone WAF Edit and Zone Read.',
+                    ($error['code'] ?? null) === self::UNKNOWN_TOKEN => 'Cloudflare doesn’t recognise this token. Check PORRO_CLOUDFLARE_TOKEN is the token itself, shown once when you created it, not its ID or the Global API Key.',
+                    $status === 401, $status === 403 => 'Cloudflare refused the token'.(isset($error['message']) ? ": {$error['message']}" : '').'. Check it has '.self::PERMISSIONS.'.',
                     default => (string) ($error['message'] ?? "Cloudflare answered {$status}."),
                 },
                 $status,
