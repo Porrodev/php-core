@@ -77,9 +77,39 @@ final class Buffer
             return false;
         }
 
+        $written = $this->write($this->path, $data."\n", $this->cap);
+
+        if ($written === null) {
+            return $keep ? false : $this->over($signal);
+        }
+
+        return $written;
+    }
+
+    /**
+     * Past the cap: one byte for a signal, so totals still add up, and up
+     * to OVER_CAP of those.
+     */
+    private function over(?string $signal): bool
+    {
+        $byte = $signal === null ? null : (self::OVER[$signal] ?? null);
+
+        if ($byte !== null) {
+            $this->write($this->path.'.over', $byte, self::OVER_CAP);
+        }
+
+        return true;
+    }
+
+    /**
+     * Appends $data to $file under an exclusive lock: true when written,
+     * false when it couldn't be, null when the file is at $cap.
+     */
+    private function write(string $file, string $data, int $cap): ?bool
+    {
         // Twice at most: once more if a flush renamed the file meanwhile.
         for ($try = 0; $try < 2; $try++) {
-            $handle = self::quietly(fn () => fopen($this->path, 'a'));
+            $handle = self::quietly(fn () => fopen($file, 'a'));
 
             if ($handle === false) {
                 return false;
@@ -91,18 +121,18 @@ final class Buffer
                 }
 
                 $opened = fstat($handle);
-                clearstatcache(true, $this->path);
-                $current = self::quietly(fn () => stat($this->path));
+                clearstatcache(true, $file);
+                $current = self::quietly(fn () => stat($file));
 
                 if ($opened === false || $current === false || $opened['ino'] !== $current['ino'] || $opened['dev'] !== $current['dev']) {
                     continue;
                 }
 
-                if ($opened['size'] >= $this->cap) {
-                    return $keep ? false : $this->over($signal);
+                if ($opened['size'] >= $cap) {
+                    return null;
                 }
 
-                return fwrite($handle, $data."\n") === strlen($data) + 1;
+                return fwrite($handle, $data) === strlen($data);
             } finally {
                 flock($handle, LOCK_UN);
                 fclose($handle);
@@ -110,37 +140,6 @@ final class Buffer
         }
 
         return false;
-    }
-
-    /**
-     * Past the cap: one byte for a signal, so totals still add up, and up
-     * to OVER_CAP of those. A single byte append needs no lock.
-     */
-    private function over(?string $signal): bool
-    {
-        $byte = $signal === null ? null : (self::OVER[$signal] ?? null);
-
-        if ($byte === null) {
-            return true;
-        }
-
-        $handle = self::quietly(fn () => fopen($this->path.'.over', 'a'));
-
-        if ($handle === false) {
-            return true;
-        }
-
-        try {
-            $size = fstat($handle)['size'] ?? self::OVER_CAP;
-
-            if ($size < self::OVER_CAP) {
-                fwrite($handle, $byte);
-            }
-
-            return true;
-        } finally {
-            fclose($handle);
-        }
     }
 
     /**
