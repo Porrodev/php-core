@@ -63,6 +63,42 @@ final class NginxBlocklist
     }
 
     /**
+     * A path nginx can keep using across deploys. On zero-downtime setups
+     * (Forge, Envoyer, Deployer) the app runs from releases/{id}, which is
+     * replaced on every deploy and later deleted, so a path inside it goes
+     * stale: nginx keeps reading an old release's file, then `nginx -t`
+     * fails once that release is cleaned up.
+     *
+     * When the folder is a symlink into shared storage, as storage usually
+     * is there, its real path outlives every release. Otherwise the path
+     * goes through the `current` symlink, which follows the latest release.
+     * Paths outside a releases folder come back as they were.
+     */
+    public static function stablePath(string $path): string
+    {
+        if (! preg_match('#/releases/[^/]+/#', $path)) {
+            return $path;
+        }
+
+        // The nearest folder that exists, resolved through any symlinks.
+        $dir = dirname($path);
+        $rest = basename($path);
+
+        while (! is_dir($dir) && dirname($dir) !== $dir) {
+            $rest = basename($dir).'/'.$rest;
+            $dir = dirname($dir);
+        }
+
+        $real = realpath($dir);
+
+        if ($real !== false && ! preg_match('#/releases/[^/]+(/|$)#', $real)) {
+            return rtrim($real, '/').'/'.$rest;
+        }
+
+        return (string) preg_replace('#/releases/[^/]+/#', '/current/', $path, 1);
+    }
+
+    /**
      * Writes $contents to $path all at once, so nginx never reads half a
      * file. Skips the write when nothing changed, so the reload job
      * (which watches the file's time) only reloads when it must.

@@ -794,3 +794,33 @@ describe('nginx status', function () {
             ->toBe('f=/home/forge/example.com/storage/porro/nginx-blocklist.conf; s=/var/tmp/porro-nginx.stamp; [ "$f" -nt "$s" ] && nginx -t -q && systemctl reload nginx && touch "$s"');
     });
 });
+
+describe('a stable nginx path on zero-downtime sites', function () {
+    beforeEach(function () {
+        // Forge's layout: releases/{id} per deploy, storage shared through a symlink.
+        $this->site = realpath(sys_get_temp_dir()).'/porro-site-'.bin2hex(random_bytes(4));
+        mkdir($this->site.'/releases/81394459/public', 0755, true);
+        mkdir($this->site.'/storage/app', 0755, true);
+        symlink($this->site.'/storage', $this->site.'/releases/81394459/storage');
+        symlink($this->site.'/releases/81394459', $this->site.'/current');
+    });
+
+    afterEach(function () {
+        exec('rm -rf '.escapeshellarg($this->site));
+    });
+
+    it('follows shared storage out of the release, even before its folder exists', function () {
+        expect(NginxBlocklist::stablePath($this->site.'/releases/81394459/storage/porro/nginx-blocklist.conf'))
+            ->toBe($this->site.'/storage/porro/nginx-blocklist.conf');
+    });
+
+    it('goes through current when the folder lives in the release', function () {
+        expect(NginxBlocklist::stablePath($this->site.'/releases/81394459/public'))
+            ->toBe($this->site.'/current/public');
+    });
+
+    it('leaves a path outside a releases folder alone', function () {
+        expect(NginxBlocklist::stablePath('/home/forge/example.com/storage/porro/nginx-blocklist.conf'))
+            ->toBe('/home/forge/example.com/storage/porro/nginx-blocklist.conf');
+    });
+});
