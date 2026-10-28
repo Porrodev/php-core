@@ -13,6 +13,10 @@ use Throwable;
  * Raw IPs stay in this cache and nowhere else. Usernames are kept only
  * as keyed hashes, enough to count how many accounts an IP tried.
  *
+ * With a Buffer, a request only appends a line to a file on its server,
+ * and flush() records the lines in batches; without one, or when it can't
+ * be written, each request is recorded straight away.
+ *
  * Every write fails open: a broken cache must never break a page.
  */
 final class Recorder
@@ -26,6 +30,15 @@ final class Recorder
     public const POST_FLOOD = 'post_flood';
 
     public const SIGNALS = [self::PROBE, self::LOGIN_FAILED, self::NOT_FOUND, self::POST_FLOOD];
+
+    /** What a buffered line is: a signal, a flagged IP's other request, a block, an exposed file. */
+    private const RECORD = 'r';
+
+    private const SEEN = 's';
+
+    private const BLOCKED = 'b';
+
+    private const EXPOSED = 'x';
 
     public const TTL = 172800;
 
@@ -54,7 +67,8 @@ final class Recorder
      * Past this many requests from one IP in an hour, only one in
      * FLOOD_SAMPLE is written, counted FLOOD_SAMPLE times: a flood costs a
      * tenth of the writes, and its counts become close estimates. Ten
-     * times further on, one in a hundred.
+     * times further on, one in a hundred. Only when recording directly:
+     * a flush reads each record once, so it counts every request.
      */
     public const FLOOD_AFTER = 300;
 
@@ -90,6 +104,8 @@ final class Recorder
      * @param  array<string, int>  $thresholds
      * @param  (Closure(list<string> $keys): array<string, mixed>)|null  $many  reads several keys in one go, when the store can
      * @param  (Closure(int $min, int $max): int)|null  $random
+     * @param  Buffer|null  $buffer  where requests wait to be flushed; without one (or when it can't be written) they're recorded straight away
+     * @param  (Closure(Closure $work): mixed)|null  $lock  runs a flush's work under a lock every server shares, or not at all when it's taken
      */
     public function __construct(
         private readonly Closure $get,
@@ -101,6 +117,8 @@ final class Recorder
         array $thresholds = [],
         private readonly ?Closure $many = null,
         ?Closure $random = null,
+        private readonly ?Buffer $buffer = null,
+        private readonly ?Closure $lock = null,
     ) {
         $this->thresholds = $thresholds + self::THRESHOLDS;
         $this->random = $random ?? fn (int $min, int $max) => random_int($min, $max);
@@ -123,6 +141,12 @@ final class Recorder
         $hour = gmdate('YmdH', $at);
 
         try {
+            $hash = $signal === self::LOGIN_FAILED && $username !== null && $username !== '' ? $this->userHash($username) : null;
+
+            if ($this->buffered(self::RECORD, $ip, $signal, $method, $path, $status, $host, $userAgent, $proxied, $category, $hash, $at, self::country($country))) {
+                return;
+            }
+
             $source = $this->protected->match($ip);
 
             if ($source !== null) {
@@ -148,7 +172,7 @@ final class Recorder
                 return;
             }
 
-            $this->touch($hour, $ip, $signal, $method, $path, $status, $username, $at, self::country($country), $userAgent, compact('category', 'host', 'proxied'), $record, $weight);
+            $this->touch($hour, $ip, $signal, $method, $path, $status, $hash, $at, self::country($country), $userAgent, compact('category', 'host', 'proxied'), $record, $weight);
         } catch (Throwable) {
             // Fail open.
         }
@@ -288,14 +312,56 @@ final class Recorder
     public function exposed(string $ip, string $path, int $status, ?int $at = null): void
     {
         try {
-            $list = $this->read('exposed');
-            $path = Probes::normalise($path);
-            $list = array_values(array_filter($list, fn ($e) => ($e['path'] ?? null) !== $path));
-            array_unshift($list, ['path' => $path, 'ip' => $ip, 'status' => $status, 'at' => $at ?? time()]);
-            ($this->put)($this->key('exposed'), array_slice($list, 0, self::EXPOSED_CAP), self::TTL);
+            if ($this->buffered(self::EXPOSED, $ip, null, '', $path, $status, null, null, null, null, null, $at ?? time(), null, true)) {
+                return;
+            }
+
+            $this->expose([['path' => $path, 'ip' => $ip, 'status' => $status, 'at' => $at ?? time()]]);
         } catch (Throwable) {
             //
         }
+    }
+
+    /**
+     * Records what's waiting in the buffer: one read and one write per IP
+     * and hour, however many requests it made, and one increment per
+     * total. Every count is exact, so nothing is sampled.
+     *
+     * Safe to run on several servers at once: each takes only its own
+     * file, and the lock keeps two from updating the same records.
+     *
+     * @return int how many requests were recorded
+     */
+    public function flush(?int $now = null): int
+    {
+        if ($this->buffer === null) {
+            return 0;
+        }
+
+        $count = 0;
+
+        try {
+            $this->buffer->exclusive(function () use (&$count, $now) {
+                $work = function () use (&$count, $now) {
+                    [$lines, $over] = $this->buffer->take($now);
+                    $count = $this->apply($lines, $over, $now ?? time());
+                };
+
+                $this->lock === null ? $work() : ($this->lock)($work);
+            });
+        } catch (Throwable) {
+            // Fail open.
+        }
+
+        return $count;
+    }
+
+    /**
+     * Whether the buffer has waited long enough to be flushed.
+     */
+    public function flushDue(int $seconds = 60): bool
+    {
+        return $this->buffer !== null && $this->buffer->due($seconds);
     }
 
     public function summary(int $hours = 24, ?int $now = null): Summary
@@ -409,6 +475,10 @@ final class Recorder
         $at ??= time();
 
         try {
+            if ($this->buffered($blocked ? self::BLOCKED : self::SEEN, $ip, null, $method, $path, $status, $host, $userAgent, $proxied, null, null, $at, null)) {
+                return;
+            }
+
             if ($this->protected->match($ip) !== null) {
                 return;
             }
@@ -430,7 +500,7 @@ final class Recorder
      * @param  array<string, mixed>  $record  this hour's record for the IP, as already read
      * @param  int  $weight  how many requests this write stands for (see FLOOD_AFTER)
      */
-    private function touch(string $hour, string $ip, ?string $signal, string $method, string $path, int $status, ?string $username, int $at, ?string $country, ?string $userAgent, array $more, array $record, int $weight): void
+    private function touch(string $hour, string $ip, ?string $signal, string $method, string $path, int $status, ?string $hash, int $at, ?string $country, ?string $userAgent, array $more, array $record, int $weight): void
     {
         $key = "{$hour}:ip:{$ip}";
         $isNew = $record === [];
@@ -446,6 +516,29 @@ final class Recorder
             }
         }
 
+        $record = $this->add($record, $signal, $method, $path, $status, $hash, $at, $country, $userAgent, $more, $weight);
+        ($this->put)($this->key($key), $record, self::TTL);
+
+        if ($signal !== null && $this->crosses($record)) {
+            $this->watch([$ip => $at]);
+        }
+
+        if ($isNew && ! in_array($ip, $index, true)) {
+            $index[] = $ip;
+            ($this->put)($this->key("{$hour}:i"), $index, self::TTL);
+        }
+    }
+
+    /**
+     * One request added to an hour's record for an IP.
+     *
+     * @param  array<string, mixed>  $record
+     * @param  string|null  $hash  the username's keyed hash, for a failed login
+     * @param  array{category?: ?string, host?: ?string, proxied?: ?bool, blocked?: bool}  $more
+     * @return array<string, mixed>
+     */
+    private function add(array $record, ?string $signal, string $method, string $path, int $status, ?string $hash, int $at, ?string $country, ?string $userAgent, array $more, int $weight): array
+    {
         $slot = (int) (((int) gmdate('i', $at)) / 10);
         $method = self::method($method);
         $path = substr($path, 0, 200);
@@ -515,22 +608,210 @@ final class Recorder
         array_unshift($recent, [$method, $path, $status, $at]);
         $record['r'] = array_slice($recent, 0, self::RECENT_CAP);
 
-        if ($signal === self::LOGIN_FAILED && $username !== null && $username !== '' && count($record['u'] ?? []) < self::USERS_CAP) {
-            $record['u'][$this->userHash($username)] = 1;
+        if ($signal === self::LOGIN_FAILED && $hash !== null && $hash !== '' && count($record['u'] ?? []) < self::USERS_CAP) {
+            $record['u'][$hash] = 1;
         }
 
-        ($this->put)($this->key($key), $record, self::TTL);
+        return $record;
 
-        if ($signal !== null && $this->crosses($record)) {
-            $this->watch($ip, $at);
+    }
+
+    /**
+     * Applies flushed lines: each IP's hour read once (in batches) and
+     * written once, each total incremented once.
+     *
+     * @param  list<mixed>  $lines
+     * @param  array<string, int>  $over  requests past the buffer's cap, per signal
+     */
+    private function apply(array $lines, array $over, int $now): int
+    {
+        $totals = [];
+        $groups = [];
+        $exposed = [];
+        $safe = [];
+        $count = 0;
+
+        foreach ($lines as $line) {
+            $event = self::parse($line, $now);
+
+            if ($event === null) {
+                continue;
+            }
+
+            $count++;
+            [$kind, $ip, $signal, , , , , , , , , $at] = $event;
+
+            if ($kind === self::EXPOSED) {
+                $exposed[] = ['path' => $event[4], 'ip' => $ip, 'status' => $event[5], 'at' => $at];
+
+                continue;
+            }
+
+            $hour = gmdate('YmdH', $at);
+            $source = $this->protected->match($ip);
+
+            if ($source !== null) {
+                if ($kind === self::RECORD && in_array($source, [ProtectedRanges::CLOUDFLARE, ProtectedRanges::RESERVED], true)) {
+                    $totals["{$hour}:t:proxied"] = ($totals["{$hour}:t:proxied"] ?? 0) + 1;
+                }
+
+                continue;
+            }
+
+            if ($kind === self::RECORD) {
+                $totals["{$hour}:t:{$signal}"] = ($totals["{$hour}:t:{$signal}"] ?? 0) + 1;
+
+                if ($this->safelisted !== null && ($safe[$ip] ??= (bool) ($this->safelisted)($ip))) {
+                    continue;
+                }
+            }
+
+            $groups[$hour][$ip][] = $event;
         }
 
-        if ($isNew) {
-            if (! in_array($ip, $index, true)) {
-                $index[] = $ip;
+        // Past the cap, only counted: towards this hour's totals.
+        $hour = gmdate('YmdH', $now);
+
+        foreach ($over as $signal => $n) {
+            if (in_array($signal, self::SIGNALS, true) && $n > 0) {
+                $totals["{$hour}:t:{$signal}"] = ($totals["{$hour}:t:{$signal}"] ?? 0) + $n;
+                $count += $n;
+            }
+        }
+
+        foreach ($totals as $key => $n) {
+            ($this->increment)($this->key($key), self::TTL, $n);
+        }
+
+        $watch = [];
+
+        foreach ($groups as $hour => $ips) {
+            $index = $this->read("{$hour}:i");
+            $indexed = array_flip($index);
+            $grew = false;
+
+            foreach (array_chunk(array_keys($ips), 200) as $chunk) {
+                $keys = [];
+
+                foreach ($chunk as $ip) {
+                    $keys[(string) $ip] = "{$hour}:ip:{$ip}";
+                }
+
+                $records = $this->readMany($keys);
+
+                foreach ($keys as $ip => $key) {
+                    $record = $records[$ip] ?? [];
+
+                    if ($record === [] && ! isset($indexed[$ip])) {
+                        if (count($index) >= self::INDEX_CAP) {
+                            continue;
+                        }
+
+                        $index[] = $ip;
+                        $indexed[$ip] = true;
+                        $grew = true;
+                    }
+
+                    foreach ($ips[$ip] as [$kind, , $signal, $method, $path, $status, $host, $agent, $proxied, $category, $hash, $at, $country]) {
+                        $more = $kind === self::RECORD ? compact('category', 'host', 'proxied') : ['host' => $host, 'proxied' => $proxied, 'blocked' => $kind === self::BLOCKED];
+                        $record = $this->add($record, $signal, $method, $path, $status, $hash, $at, $country, $agent, $more, 1);
+
+                        if ($signal !== null && ! isset($watch[$ip]) && $this->crosses($record)) {
+                            $watch[$ip] = $at;
+                        }
+                    }
+
+                    ($this->put)($this->key($key), $record, self::TTL);
+                }
+            }
+
+            if ($grew) {
                 ($this->put)($this->key("{$hour}:i"), $index, self::TTL);
             }
         }
+
+        if ($watch !== []) {
+            $this->watch($watch);
+        }
+
+        if ($exposed !== []) {
+            $this->expose($exposed);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Adds a request to the buffer, true when it went there. The line is
+     * already cut short and the username hashed, so nothing raw waits on
+     * disk that the store wouldn't keep.
+     */
+    private function buffered(string $kind, string $ip, ?string $signal, string $method, string $path, int $status, ?string $host, ?string $userAgent, ?bool $proxied, ?string $category, ?string $hash, int $at, ?string $country, bool $keep = false): bool
+    {
+        if ($this->buffer === null) {
+            return false;
+        }
+
+        $host = $host === null || $host === '' ? null : strtolower(substr($host, 0, 100));
+        $userAgent = $userAgent === null || $userAgent === '' ? null : substr($userAgent, 0, 200);
+
+        return $this->buffer->append([$kind, $ip, $signal, self::method($method), substr($path, 0, 200), $status, $host, $userAgent, $proxied, $category, $hash, $at, $country], $signal, $keep);
+    }
+
+    /**
+     * A buffered line, checked: the file sits on disk, so nothing in it is
+     * trusted. Null when it's malformed or older than activity is kept.
+     *
+     * @return array{0: string, 1: string, 2: ?string, 3: string, 4: string, 5: int, 6: ?string, 7: ?string, 8: ?bool, 9: ?string, 10: ?string, 11: int, 12: ?string}|null
+     */
+    private static function parse(mixed $line, int $now): ?array
+    {
+        if (! is_array($line) || ! array_is_list($line) || count($line) !== 13) {
+            return null;
+        }
+
+        [$kind, $ip, $signal, $method, $path, $status, $host, $agent, $proxied, $category, $hash, $at, $country] = $line;
+
+        if (! in_array($kind, [self::RECORD, self::SEEN, self::BLOCKED, self::EXPOSED], true)
+            || ! is_string($ip) || filter_var($ip, FILTER_VALIDATE_IP) === false
+            || ! is_int($at) || $at <= $now - self::TTL || $at > $now + 300
+            || ! is_int($status) || $status < 0 || $status > 999
+            || ! is_string($method) || ! is_string($path)) {
+            return null;
+        }
+
+        if ($kind === self::RECORD ? ! in_array($signal, self::SIGNALS, true) : $signal !== null) {
+            return null;
+        }
+
+        $string = fn (mixed $value, int $max) => is_string($value) && $value !== '' ? substr($value, 0, $max) : null;
+        $hash = $signal === self::LOGIN_FAILED && is_string($hash) && preg_match('/^[0-9a-f]{16}$/', $hash) ? $hash : null;
+
+        return [
+            $kind, (string) $ip, $signal, self::method($method), substr($path, 0, 200), $status,
+            ($host = $string($host, 100)) === null ? null : strtolower($host),
+            $string($agent, 200),
+            is_bool($proxied) ? $proxied : null,
+            is_string($category) ? $category : null,
+            $hash, $at,
+            is_string($country) ? self::country($country) : null,
+        ];
+    }
+
+    /**
+     * @param  list<array{path: string, ip: string, status: int, at: int}>  $entries  oldest first
+     */
+    private function expose(array $entries): void
+    {
+        $list = $this->read('exposed');
+
+        foreach ($entries as $entry) {
+            $path = Probes::normalise($entry['path']);
+            $list = array_values(array_filter($list, fn ($e) => ($e['path'] ?? null) !== $path));
+            array_unshift($list, ['path' => $path] + $entry);
+        }
+
+        ($this->put)($this->key('exposed'), array_slice($list, 0, self::EXPOSED_CAP), self::TTL);
     }
 
     /**
@@ -588,17 +869,21 @@ final class Recorder
         return false;
     }
 
-    private function watch(string $ip, int $at): void
+    /**
+     * @param  array<string, int>  $ips  ip => when it was flagged
+     */
+    private function watch(array $ips): void
     {
         $list = $this->read('watch');
+        $new = array_diff_key($ips, $list);
 
-        if (isset($list[$ip])) {
+        if ($new === []) {
             return;
         }
 
         // Kept no longer than the activity it came from.
-        $list = array_filter($list, fn ($since) => (int) $since > $at - self::TTL);
-        $list[$ip] = $at;
+        $latest = max($new);
+        $list = array_filter($list, fn ($since) => (int) $since > $latest - self::TTL) + $new;
         arsort($list);
         ($this->put)($this->key('watch'), array_slice($list, 0, self::WATCH_CAP, true), self::TTL);
     }
