@@ -1,0 +1,4 @@
+# Fixture in the shape of CRS rules/lfi-os-files.data.
+etc/passwd
+etc/motd
+windows/system32/license.rtf
