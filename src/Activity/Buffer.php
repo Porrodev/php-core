@@ -144,7 +144,9 @@ final class Buffer
 
     /**
      * Runs $work unless another flush on this server is running. Never
-     * waits. The lock file's time is when this server last flushed.
+     * waits. The .flushed file's time is when this server last flushed:
+     * set only when $work didn't return false (another server held its
+     * lock), so a skipped flush stays due.
      */
     public function exclusive(Closure $work): bool
     {
@@ -163,8 +165,11 @@ final class Buffer
                 return false;
             }
 
-            self::quietly(fn () => touch($this->path.'.lock'));
-            $work();
+            if ($work() === false) {
+                return false;
+            }
+
+            self::quietly(fn () => touch($this->path.'.flushed'));
 
             return true;
         } finally {
@@ -186,11 +191,24 @@ final class Buffer
                 return false;
             }
 
-            $last = file_exists($this->path.'.lock') ? filemtime($this->path.'.lock') : false;
+            $last = file_exists($this->path.'.flushed') ? filemtime($this->path.'.flushed') : false;
 
             return $last === false || $last <= ($now ?? time()) - $seconds;
         } catch (Throwable) {
             return false;
+        }
+    }
+
+    /**
+     * Deletes everything waiting, unread: for when recording or batching
+     * is switched off, so no raw IP stays on disk past 48 hours.
+     */
+    public function clear(): void
+    {
+        foreach ([$this->path, $this->path.'.over', ...(glob($this->path.'.*.taking') ?: [])] as $file) {
+            if (file_exists($file)) {
+                self::quietly(fn () => unlink($file));
+            }
         }
     }
 
@@ -255,19 +273,20 @@ final class Buffer
         $id = bin2hex(random_bytes(6));
         $files = [];
 
+        $over = basename($this->path).'.over.';
+
+        // Older lines first: those a dead flush left behind.
+        foreach (glob($this->path.'.*.taking') ?: [] as $orphan) {
+            if ((int) self::quietly(fn () => filemtime($orphan)) <= $now - self::ORPHAN_AFTER) {
+                $files[$orphan] = str_starts_with(basename($orphan), $over);
+            }
+        }
+
         foreach ([$this->path => false, $this->path.'.over' => true] as $live => $isOver) {
             $taken = "{$live}.{$id}.taking";
 
             if (file_exists($live) && self::quietly(fn () => rename($live, $taken))) {
                 $files[$taken] = $isOver;
-            }
-        }
-
-        $over = basename($this->path).'.over.';
-
-        foreach (glob($this->path.'.*.taking') ?: [] as $orphan) {
-            if (! isset($files[$orphan]) && (int) self::quietly(fn () => filemtime($orphan)) <= $now - self::ORPHAN_AFTER) {
-                $files[$orphan] = str_starts_with(basename($orphan), $over);
             }
         }
 

@@ -294,4 +294,84 @@ describe('buffer', function () {
 
         expect($buffer->take(time()))->toEqual([[json_decode($line, true)], [Recorder::NOT_FOUND => 2]]);
     });
+
+    it('keeps the exposed-file alert and the other IPs when one record fails to save', function () {
+        $buffer = new Buffer(bufferPath());
+        $cache = [];
+        $recorder = new Recorder(
+            function (string $key) use (&$cache) {
+                return $cache[$key] ?? null;
+            },
+            function (string $key, mixed $value) use (&$cache) {
+                if (str_contains($key, ':ip:185.220.101.4')) {
+                    throw new RuntimeException('deadlock');
+                }
+
+                $cache[$key] = $value;
+            },
+            function (string $key, int $ttl, int $by = 1) use (&$cache) {
+                $cache[$key] = ($cache[$key] ?? 0) + $by;
+            },
+            new ProtectedRanges,
+            'app-key',
+            buffer: $buffer,
+        );
+
+        $recorder->record('185.220.101.4', Recorder::PROBE, 'GET', '/.env', 200, at: BUFFER_NOW, category: 'secrets');
+        $recorder->exposed('185.220.101.4', '/.env', 200, BUFFER_NOW);
+        $recorder->record('45.33.32.156', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW);
+        $recorder->flush(BUFFER_NOW);
+
+        expect($cache['porro:activity:exposed'][0]['path'])->toBe('/.env')
+            ->and($recorder->history('45.33.32.156', 48, BUFFER_NOW)->requests)->toBe(1);
+    });
+
+    it('stays due when another server held the flush lock', function () {
+        $buffer = new Buffer(bufferPath());
+        $recorder = new Recorder(
+            fn () => null, fn () => null, fn () => null,
+            new ProtectedRanges,
+            'app-key',
+            buffer: $buffer,
+            lock: fn (Closure $work) => false,
+        );
+
+        $recorder->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', '/x', 404, at: BUFFER_NOW);
+        $recorder->flush(BUFFER_NOW);
+
+        expect($buffer->due(60, time()))->toBeTrue()
+            ->and(file($buffer->path))->toHaveCount(1);
+    });
+
+    it('keeps the newest request last when another server flushes older ones later', function () {
+        $cache = [];
+        $a = bufferedRecorder(new Buffer(bufferPath()), $cache);
+        $b = bufferedRecorder(new Buffer(bufferPath()), $cache);
+
+        foreach (range(0, 9) as $i) {
+            $a->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', "/new{$i}", 404, at: BUFFER_NOW - 100 + $i);
+            $b->record('185.220.101.4', Recorder::NOT_FOUND, 'GET', "/old{$i}", 404, at: BUFFER_NOW - 1000 + $i);
+        }
+
+        $a->flush(BUFFER_NOW);
+        $b->flush(BUFFER_NOW);
+        $ip = $a->history('185.220.101.4', 48, BUFFER_NOW);
+
+        expect($ip->lastSeen)->toBe(BUFFER_NOW - 91)
+            ->and($ip->recent[0][1])->toBe('/new9')
+            ->and(array_column($ip->recent, 1))->not->toContain('/old9')
+            ->and($ip->requests)->toBe(20);
+    });
+
+    it('clears what’s waiting when batching is switched off', function () {
+        $buffer = new Buffer(bufferPath(), cap: 1);
+        file_put_contents($buffer->path, 'x');
+        file_put_contents($buffer->path.'.over', 'n');
+        file_put_contents($buffer->path.'.abc.taking', 'y');
+
+        $buffer->clear();
+
+        expect(glob($buffer->path.'*'))->toBe([]);
+    });
 });
+

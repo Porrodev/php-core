@@ -105,7 +105,7 @@ final class Recorder
      * @param  (Closure(list<string> $keys): array<string, mixed>)|null  $many  reads several keys in one go, when the store can
      * @param  (Closure(int $min, int $max): int)|null  $random
      * @param  Buffer|null  $buffer  where requests wait to be flushed; without one (or when it can't be written) they're recorded straight away
-     * @param  (Closure(Closure $work): mixed)|null  $lock  runs a flush's work under a lock every server shares, or not at all when it's taken
+     * @param  (Closure(Closure $work): mixed)|null  $lock  runs a flush's work under a lock every server shares, or returns false when it's taken
      */
     public function __construct(
         private readonly Closure $get,
@@ -345,9 +345,12 @@ final class Recorder
                 $work = function () use (&$count, $now) {
                     [$lines, $over] = $this->buffer->take($now);
                     $count = $this->apply($lines, $over, $now ?? time());
+
+                    return true;
                 };
 
-                $this->lock === null ? $work() : ($this->lock)($work);
+                // False when another server holds the lock: still due, then.
+                return $this->lock === null ? $work() : ($this->lock)($work) !== false;
             });
         } catch (Throwable) {
             // Fail open.
@@ -590,22 +593,31 @@ final class Recorder
             $record['po'] = ($record['po'] ?? 0) + $w;
         }
 
-        $record['m'] = $method;
-        $record['p'] = $path;
-        $record['st'] = $status;
-        $record['t'] = $at;
+        // Another server's flush can bring older requests: they don't
+        // become the last one seen.
+        if ($at >= (int) ($record['t'] ?? 0)) {
+            $record['m'] = $method;
+            $record['p'] = $path;
+            $record['st'] = $status;
+            $record['t'] = $at;
 
-        if ($country !== null) {
-            $record['cc'] = $country;
-        }
+            if ($country !== null) {
+                $record['cc'] = $country;
+            }
 
-        // The last one only, cut short: enough to spot a fake Googlebot.
-        if ($userAgent !== null && $userAgent !== '') {
-            $record['ua'] = substr($userAgent, 0, 200);
+            // The last one only, cut short: enough to spot a fake Googlebot.
+            if ($userAgent !== null && $userAgent !== '') {
+                $record['ua'] = substr($userAgent, 0, 200);
+            }
         }
 
         $recent = $record['r'] ?? [];
         array_unshift($recent, [$method, $path, $status, $at]);
+
+        if (isset($recent[1]) && $recent[1][3] > $at) {
+            usort($recent, fn ($a, $b) => $b[3] <=> $a[3]);
+        }
+
         $record['r'] = array_slice($recent, 0, self::RECENT_CAP);
 
         if ($signal === self::LOGIN_FAILED && $hash !== null && $hash !== '' && count($record['u'] ?? []) < self::USERS_CAP) {
@@ -629,6 +641,7 @@ final class Recorder
         $groups = [];
         $exposed = [];
         $safe = [];
+        $sources = [];
         $count = 0;
 
         foreach ($lines as $line) {
@@ -648,7 +661,8 @@ final class Recorder
             }
 
             $hour = gmdate('YmdH', $at);
-            $source = $this->protected->match($ip);
+            // Once per IP: a flood is one address thousands of times.
+            $source = array_key_exists($ip, $sources) ? $sources[$ip] : ($sources[$ip] = $this->protected->match($ip));
 
             if ($source !== null) {
                 if ($kind === self::RECORD && in_array($source, [ProtectedRanges::CLOUDFLARE, ProtectedRanges::RESERVED], true)) {
@@ -679,8 +693,13 @@ final class Recorder
             }
         }
 
+        // The alert first: the one thing a failed write mustn't cost.
+        if ($exposed !== []) {
+            $this->attempt(fn () => $this->expose($exposed));
+        }
+
         foreach ($totals as $key => $n) {
-            ($this->increment)($this->key($key), self::TTL, $n);
+            $this->attempt(fn () => ($this->increment)($this->key($key), self::TTL, $n));
         }
 
         $watch = [];
@@ -701,6 +720,9 @@ final class Recorder
 
                 foreach ($keys as $ip => $key) {
                     $record = $records[$ip] ?? [];
+                    $events = $ips[$ip];
+                    // Servers flush in any order: oldest first, so the last request stays last.
+                    usort($events, fn ($a, $b) => $a[11] <=> $b[11]);
 
                     if ($record === [] && ! isset($indexed[$ip])) {
                         if (count($index) >= self::INDEX_CAP) {
@@ -712,33 +734,45 @@ final class Recorder
                         $grew = true;
                     }
 
-                    foreach ($ips[$ip] as [$kind, , $signal, $method, $path, $status, $host, $agent, $proxied, $category, $hash, $at, $country]) {
+                    $crossed = null;
+
+                    foreach ($events as [$kind, , $signal, $method, $path, $status, $host, $agent, $proxied, $category, $hash, $at, $country]) {
                         $more = $kind === self::RECORD ? compact('category', 'host', 'proxied') : ['host' => $host, 'proxied' => $proxied, 'blocked' => $kind === self::BLOCKED];
                         $record = $this->add($record, $signal, $method, $path, $status, $hash, $at, $country, $agent, $more, 1);
 
-                        if ($signal !== null && ! isset($watch[$ip]) && $this->crosses($record)) {
-                            $watch[$ip] = $at;
+                        if ($signal !== null && $crossed === null && $this->crosses($record)) {
+                            $crossed = $at;
                         }
                     }
 
-                    ($this->put)($this->key($key), $record, self::TTL);
+                    // One record failing to save costs that record, not the batch.
+                    if ($this->attempt(fn () => ($this->put)($this->key($key), $record, self::TTL)) && $crossed !== null && ! isset($watch[$ip])) {
+                        $watch[$ip] = $crossed;
+                    }
                 }
             }
 
             if ($grew) {
-                ($this->put)($this->key("{$hour}:i"), $index, self::TTL);
+                $this->attempt(fn () => ($this->put)($this->key("{$hour}:i"), $index, self::TTL));
             }
         }
 
         if ($watch !== []) {
-            $this->watch($watch);
-        }
-
-        if ($exposed !== []) {
-            $this->expose($exposed);
+            $this->attempt(fn () => $this->watch($watch));
         }
 
         return $count;
+    }
+
+    private function attempt(Closure $write): bool
+    {
+        try {
+            $write();
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**
