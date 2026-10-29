@@ -3,7 +3,7 @@
     "description": "Shared core for Porro connectors: site keys, signing, lock-file reading, sending reports and local site health checks.",
     "type": "library",
     "license": "MIT",
-    "homepage": "https://porro.dev",
+    "homepage": "https://porro.dev/?utm_source=php-core&utm_medium=packagist&utm_campaign=connectors",
     "keywords": [
         "porro",
         "monitoring",

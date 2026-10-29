@@ -1,6 +1,6 @@
 # porro/php-core
 
-Shared core for the [Porro](https://porro.dev) connectors: parsing site keys, signing reports, reading `composer.lock`, sending reports to Porro and the site health checks the connectors show in the control panel.
+Shared core for the [Porro](https://porro.dev/?utm_source=php-core&utm_medium=readme&utm_campaign=connectors) connectors: parsing site keys, signing reports, reading `composer.lock`, sending reports to Porro and the site health checks the connectors show in the control panel.
 
 You don't install this directly. It comes with a connector:
 
