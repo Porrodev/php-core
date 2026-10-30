@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Cron lines survive zero-downtime deploys. On Forge, Envoyer and Deployer the project root resolves to `releases/<id>`; `Cron::line()` now uses the sibling `current` symlink when it points at that release (`Cron::stableDirectory()`), so cron keeps running the live code after the next deploy.
+- `Cron::line()` runs plain `php` from cron's PATH rather than the full `PHP_BINARY` path, which broke once the server moved to a newer PHP. Pass `$php` to override.
+- `Cron::install()` replaces lines it added earlier for this site and command (marked `# porro`) when they differ, e.g. a line pointing at a pruned release folder or an old PHP binary, instead of adding a second one. Lines it didn't add are never changed.
+- `Cron::hasEntry()` doesn't count a line for an older or pruned release of the same site.
+
 ## 0.3.5 - 2026-10-28
 
 - Batched activity writes. Give `Recorder` a `Buffer` and suspicious requests never touch the database on the request path: each appends one short line to a file on its server (fopen 'a', one fwrite under an exclusive lock). `Recorder::flush()` records them in batches: one read and one write per IP and hour, one increment per total, however many requests there were. The watch list and exposed-file alerts are written once a flush.
