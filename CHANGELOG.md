@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.6 - 2026-10-30
 
 - Cron lines survive zero-downtime deploys. On Forge, Envoyer and Deployer the project root resolves to `releases/<id>`; `Cron::line()` now uses the sibling `current` symlink when it points at that release (`Cron::stableDirectory()`), so cron keeps running the live code after the next deploy.
 - `Cron::line()` runs plain `php` from cron's PATH rather than the full `PHP_BINARY` path, which broke once the server moved to a newer PHP. Pass `$php` to override.
