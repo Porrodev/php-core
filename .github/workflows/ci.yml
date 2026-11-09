@@ -10,8 +10,7 @@ permissions:
 
 jobs:
   php:
-    # v1.1.0 adds per-leg "extensions", needed for the sodium_compat legs.
-    uses: 1994limited/coding-standard/.github/workflows/php.yml@v1.1.0
+    uses: 1994limited/coding-standard/.github/workflows/php.yml@v1
     with:
       quality-php: '8.4'
       extensions: sodium
