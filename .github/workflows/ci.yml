@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    # v1.1.0 adds per-leg "extensions", needed for the sodium_compat legs.
+    uses: 1994limited/coding-standard/.github/workflows/php.yml@v1.1.0
+    with:
+      quality-php: '8.4'
+      extensions: sodium
+      # ":sodium" runs without the extension, so paragonie/sodium_compat is used.
+      matrix: |
+        [
+          {"php": "8.2"}, {"php": "8.2", "extensions": ":sodium"},
+          {"php": "8.3"}, {"php": "8.3", "extensions": ":sodium"},
+          {"php": "8.4"}, {"php": "8.4", "extensions": ":sodium"},
+          {"php": "8.5"}, {"php": "8.5", "extensions": ":sodium"}
+        ]
