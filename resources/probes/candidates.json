@@ -6752,10 +6752,10 @@
         }
     },
     "kev": {
-        "catalog_version": "2026.10.27",
+        "catalog_version": "2026.11.06",
         "catalog_url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
         "window_days": 90,
-        "cves": 104,
+        "cves": 107,
         "covered": 3,
         "nuclei": {
             "ref": "v10.5.1",
@@ -6792,16 +6792,6 @@
                 "template": "JFrog Artifactory Access Blank Join Key Authentication Bypass",
                 "date_added": "2026-09-02",
                 "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-82329.yaml"
-            },
-            {
-                "path": "/accessv2",
-                "category": "appliance",
-                "cve": "CVE-2026-8037",
-                "vendor": "Progress",
-                "product": "LoadMaster",
-                "template": "Progress ADC LoadMaster - Command Injection",
-                "date_added": "2026-08-07",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-8037.yaml"
             },
             {
                 "path": "/admin/API/mnt/Session/ActiveList",
@@ -6854,16 +6844,6 @@
                 "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-72898.yaml"
             },
             {
-                "path": "/api/v1/auto_login",
-                "category": "appliance",
-                "cve": "CVE-2026-9198",
-                "vendor": "IBM",
-                "product": "Langflow",
-                "template": "IBM Langflow - Remote Code Execution",
-                "date_added": "2026-08-04",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9198.yaml"
-            },
-            {
                 "path": "/api/v1/repos/{{ruser}}/{{rrepo}}/branches/main",
                 "category": "appliance",
                 "cve": "CVE-2026-60004",
@@ -6904,16 +6884,6 @@
                 "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
             },
             {
-                "path": "/api/v1/validate/code",
-                "category": "appliance",
-                "cve": "CVE-2026-9198",
-                "vendor": "IBM",
-                "product": "Langflow",
-                "template": "IBM Langflow - Remote Code Execution",
-                "date_added": "2026-08-04",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9198.yaml"
-            },
-            {
                 "path": "/api/v4/projects/1/repository/%66iles/{{randstr}}",
                 "category": "infrastructure",
                 "cve": "CVE-2026-85706",
@@ -6932,26 +6902,6 @@
                 "template": "PaperCut NG/MF <=26.0.4 - Unauthenticated ConfigEditor Access via Tapestry Complex-Direct",
                 "date_added": "2026-08-31",
                 "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-81578.yaml"
-            },
-            {
-                "path": "/app/agents/v1/commands/error",
-                "category": "appliance",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
-            },
-            {
-                "path": "/app/agents/v1/register",
-                "category": "appliance",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
             },
             {
                 "path": "/cpmws/UpgradeSvcRemote",
@@ -7084,16 +7034,6 @@
                 "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9586.yaml"
             },
             {
-                "path": "/pd-tp-{{randstr}}.jspws",
-                "category": "java",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
-            },
-            {
                 "path": "/s/1.0/_/download/resources/com.atlassian.bitbucket.server.bitbucket-webpack-INTERNAL:avatar/avatar/..::..::..::..::..::WEB-INF::urlrewrite.xml",
                 "category": "traversal",
                 "cve": "CVE-2026-21589",
@@ -7145,6 +7085,7 @@
             "CVE-2022-0995",
             "CVE-2023-22894",
             "CVE-2023-49105",
+            "CVE-2024-27834",
             "CVE-2025-25249",
             "CVE-2025-39682",
             "CVE-2025-39964",
@@ -7159,14 +7100,19 @@
             "CVE-2026-109619",
             "CVE-2026-110447",
             "CVE-2026-110936",
+            "CVE-2026-111357",
             "CVE-2026-111497",
             "CVE-2026-114625",
-            "CVE-2026-18556",
+            "CVE-2026-118527",
+            "CVE-2026-119977",
             "CVE-2026-19490",
+            "CVE-2026-19868",
             "CVE-2026-20349",
             "CVE-2026-21962",
             "CVE-2026-33824",
+            "CVE-2026-41709",
             "CVE-2026-42016",
+            "CVE-2026-46300",
             "CVE-2026-48356",
             "CVE-2026-49869",
             "CVE-2026-53266",
@@ -7187,6 +7133,7 @@
             "CVE-2026-7273",
             "CVE-2026-73570",
             "CVE-2026-75650",
+            "CVE-2026-76418",
             "CVE-2026-76461",
             "CVE-2026-76504",
             "CVE-2026-76519",
@@ -7212,7 +7159,8 @@
             "CVE-2026-96654",
             "CVE-2026-96655",
             "CVE-2026-96656",
-            "CVE-2026-96951"
+            "CVE-2026-96951",
+            "CVE-2026-97229"
         ]
     }
 }
