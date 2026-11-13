@@ -1,0 +1,8 @@
+includes:
+    - vendor/1994/coding-standard/phpstan/base.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 6
+    paths:
+        - src
