@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.7 - 2026-11-13
 
 - `Health\MailChecks` and `SiteHealth::mail()` check how the site sends email, from facts the connector passes (mailer, SMTP host, sender address, site URL, environment). In production it raises: email that isn't sent at all (`log`, `array` or a test inbox such as Mailpit or Mailtrap's sandbox), email sent by the web server itself (`sendmail`, PHP's `mail()` or SMTP on localhost), and a sender address that's missing, still a placeholder, a free mailbox sent through another service, or on a different domain from the site (a notice). Nothing touches the network.
 
