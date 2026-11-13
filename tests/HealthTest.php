@@ -3,6 +3,7 @@
 use Porro\Core\Health\Advisories;
 use Porro\Core\Health\EndOfLife;
 use Porro\Core\Health\Issue;
+use Porro\Core\Health\MailChecks;
 use Porro\Core\Health\PorroFindings;
 use Porro\Core\Health\ReportChecks;
 use Porro\Core\Health\SiteHealth;
@@ -236,6 +237,69 @@ describe('report checks', function () {
             ->title->toBe('Cron isn’t running')
             ->severity->toBe(Issue::WARNING)
             ->fix->toBe('php craft porro/cron');
+    });
+});
+
+describe('mail checks', function () {
+    $mail = fn (array $overrides = []) => $overrides + [
+        'transport' => 'smtp', 'host' => 'smtp.postmarkapp.com', 'from' => 'hello@acme.co.uk', 'site' => 'https://www.acme.co.uk', 'environment' => 'production',
+    ];
+    $titles = fn (array $facts) => array_map(fn (Issue $i) => $i->title, (new MailChecks)->check($facts, 'MAIL_MAILER in .env'));
+
+    it('passes a real mail service sending from the site’s domain', function () use ($mail, $titles) {
+        expect($titles($mail()))->toBe([])
+            ->and($titles($mail(['transport' => 'ses', 'host' => null])))->toBe([])
+            ->and($titles($mail(['from' => 'no-reply@mail.acme.co.uk', 'site' => 'shop.acme.co.uk'])))->toBe([])
+            ->and($titles($mail(['host' => 'live.smtp.mailtrap.io'])))->toBe([]);
+    });
+
+    it('says when email goes nowhere', function () use ($mail, $titles) {
+        $log = (new MailChecks)->check($mail(['transport' => 'log', 'host' => null]), 'MAIL_MAILER in .env')[0];
+
+        expect($log)->kind->toBe('mail_not_sent')->severity->toBe(Issue::WARNING)->title->toBe('Email isn’t being sent')
+            ->and($log->detail)->toContain('“log” mailer')->toEndWith('MAIL_MAILER in .env')
+            ->and($titles($mail(['transport' => 'array'])))->toBe(['Email isn’t being sent'])
+            ->and($titles($mail(['host' => 'mailpit'])))->toBe(['Email goes to a test inbox'])
+            ->and($titles($mail(['host' => 'sandbox.smtp.mailtrap.io'])))->toBe(['Email goes to a test inbox']);
+    });
+
+    it('flags mail sent by the web server itself', function () use ($mail) {
+        $check = fn (array $facts) => (new MailChecks)->check($mail($facts), 'Settings → Email')[0];
+
+        expect($check(['transport' => 'sendmail', 'host' => null]))->kind->toBe('mail_server_sendmail')->title->toBe('Email is sent by the web server itself')
+            ->and($check(['transport' => 'sendmail'])->detail)->toContain('through sendmail.')
+            ->and($check(['transport' => 'mail'])->detail)->toContain('through PHP’s mail().')
+            ->and($check(['host' => '127.0.0.1'])->detail)->toContain('through SMTP on 127.0.0.1.');
+    });
+
+    it('checks the sender address against the site', function () use ($mail, $titles) {
+        $elsewhere = (new MailChecks)->check($mail(['from' => 'hello@agency.com']), '.env')[0];
+
+        expect($titles($mail(['from' => ''])))->toBe(['No sender address set'])
+            ->and($titles($mail(['from' => 'hello@example.com'])))->toBe(['Sender address is still the placeholder'])
+            ->and($titles($mail(['from' => 'acme.shop@gmail.com'])))->toBe(['Sender address is a gmail.com mailbox'])
+            ->and($titles($mail(['from' => 'acme.shop@gmail.com', 'host' => 'smtp.gmail.com'])))->toBe([])
+            ->and($elsewhere)->severity->toBe(Issue::NOTICE)->title->toBe('Sender address isn’t on the site’s domain')
+            ->and($elsewhere->detail)->toStartWith('Email is sent from hello@agency.com, but the site is acme.co.uk')
+            ->and($titles($mail(['from' => 'hello@other.co.uk'])))->toBe(['Sender address isn’t on the site’s domain']);
+    });
+
+    it('doesn’t compare domains when the site has no public host', function () use ($mail, $titles) {
+        expect($titles($mail(['site' => 'http://localhost'])))->toBe([])
+            ->and($titles($mail(['site' => 'http://10.0.0.4:8080'])))->toBe([])
+            ->and($titles($mail(['site' => null])))->toBe([]);
+    });
+
+    it('only checks production', function () use ($mail) {
+        $facts = $mail(['transport' => 'log', 'from' => 'hello@example.com', 'environment' => 'local']);
+        $health = (new SiteHealth(fakeSources([])))->mail($facts, '.env')->toArray(null, 'https://porro.test');
+        $live = (new SiteHealth(fakeSources([])))->mail(['environment' => 'production'] + $facts, '.env')->toArray(null, 'https://porro.test');
+
+        expect((new MailChecks)->check($facts, '.env'))->toBe([])
+            ->and($health['issues'])->toBe([])
+            ->and($health['checked'])->toBe([])
+            ->and(array_column($live['issues'], 'kind'))->toBe(['mail_not_sent', 'mail_sender'])
+            ->and($live['checked'])->toBe(['email settings']);
     });
 });
 

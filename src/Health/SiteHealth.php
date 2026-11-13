@@ -114,6 +114,25 @@ final class SiteHealth
     }
 
     /**
+     * How the site sends email: whether it's sent at all, what sends it,
+     * and the sender address. Checked in production only.
+     *
+     * @param  array{transport?: string|null, host?: string|null, from?: string|null, site?: string|null, environment?: string|null}  $mail
+     * @param  string  $where  where to change it, e.g. "MAIL_MAILER in .env"
+     */
+    public function mail(array $mail, string $where): self
+    {
+        if (! MailChecks::production($mail['environment'] ?? null)) {
+            return $this;
+        }
+
+        array_push($this->issues, ...(new MailChecks)->check($mail, $where));
+        $this->checked[] = 'email settings';
+
+        return $this;
+    }
+
+    /**
      * Something only the connector can check, e.g. the CMS's own updates.
      */
     public function add(?Issue $issue, ?string $checked = null): self
