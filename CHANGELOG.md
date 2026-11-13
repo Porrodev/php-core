@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `Health\MailChecks` and `SiteHealth::mail()` check how the site sends email, from facts the connector passes (mailer, SMTP host, sender address, site URL, environment). In production it raises: email that isn't sent at all (`log`, `array` or a test inbox such as Mailpit or Mailtrap's sandbox), email sent by the web server itself (`sendmail`, PHP's `mail()` or SMTP on localhost), and a sender address that's missing, still a placeholder, a free mailbox sent through another service, or on a different domain from the site (a notice). Nothing touches the network.
+
 ## 0.3.6 - 2026-10-30
 
 - Cron lines survive zero-downtime deploys. On Forge, Envoyer and Deployer the project root resolves to `releases/<id>`; `Cron::line()` now uses the sibling `current` symlink when it points at that release (`Cron::stableDirectory()`), so cron keeps running the live code after the next deploy.
