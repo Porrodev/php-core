@@ -3,6 +3,7 @@
 namespace Porro\Core;
 
 use Closure;
+use InvalidArgumentException;
 
 /**
  * Signs and sends a report to Porro. Only ever makes outbound HTTPS
@@ -22,7 +23,11 @@ final class Client
         private readonly int $retries = 2,
         // Seconds; backup reports use a short one so they never hold anything up.
         private readonly int $timeout = 15,
-    ) {}
+    ) {
+        if ($key->siteId === null) {
+            throw new InvalidArgumentException('This key has no site yet, so it can’t send reports. Finish connecting first.');
+        }
+    }
 
     public function send(Report $report): Result
     {
@@ -45,13 +50,9 @@ final class Client
         $attempt = 0;
 
         while (true) {
-            $headers = $this->key->headers($body, null, 'POST', '/api/v1/reports') + [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'User-Agent' => 'porro-connector/'.(Report::installedVersion('porro/php-core') ?? 'dev'),
-            ];
+            $headers = $this->key->headers($body, null, 'POST', '/api/v1/reports') + Transport::jsonHeaders();
 
-            [$status, $response] = ($this->transport ?? Closure::fromCallable([$this, 'post']))($url, $headers, $body);
+            [$status, $response] = ($this->transport ?? Transport::stream($this->timeout))($url, $headers, $body);
             $json = json_decode($response, true);
 
             if ($status >= 200 && $status < 300) {
@@ -74,36 +75,5 @@ final class Client
 
             return new Result(false, $status, false, is_array($json) && isset($json['error']) ? (string) $json['error'] : ($status === 0 ? $response : "HTTP {$status}"));
         }
-    }
-
-    /**
-     * @param  array<string, string>  $headers
-     * @return array{0: int, 1: string}
-     */
-    private function post(string $url, array $headers, string $body): array
-    {
-        $context = stream_context_create(['http' => [
-            'method' => 'POST',
-            'header' => implode("\r\n", array_map(fn ($k, $v) => "{$k}: {$v}", array_keys($headers), $headers)),
-            'content' => $body,
-            'timeout' => $this->timeout,
-            'ignore_errors' => true,
-        ]]);
-
-        $response = @file_get_contents($url, false, $context);
-
-        if ($response === false) {
-            return [0, error_get_last()['message'] ?? 'Could not reach Porro'];
-        }
-
-        $status = 0;
-
-        foreach ($http_response_header ?? [] as $line) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $m)) {
-                $status = (int) $m[1];
-            }
-        }
-
-        return [$status, $response];
     }
 }

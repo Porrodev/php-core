@@ -21,6 +21,12 @@ connector-v1\n{METHOD}\n{path}\n{timestamp}\n{nonce}\n{sha256 of body}
 
 for example `connector-v1\nPOST\n/api/v1/reports\n…`, so a signature only works for the endpoint it was made for. It's sent with `X-Porro-Site`, `X-Porro-Timestamp`, `X-Porro-Nonce` and `X-Porro-Signature` headers. Porro rejects a request outside a 5-minute window or if it has seen the nonce before. Before 0.2.1 the signature was over `{timestamp}\n{nonce}\n{sha256 of body}` alone; Porro still accepts that for reports for now, but not for findings. If `ext-sodium` isn't available, `paragonie/sodium_compat` provides it in pure PHP.
 
+## Connecting from the control panel
+
+A site can connect with no key to copy. The connector makes a key pair (`SiteKey::generate()`), asks to connect (`ConnectClient::start()`), and sends the person's browser to the page Porro answers with. Once someone signed in approves it there, the browser comes back to the site's return URL with `porro_request`, `porro_grant` and `porro_next`; the connector finishes with `ConnectClient::complete()`, which returns the site key to store. Both calls are signed with the new key, without `X-Porro-Site`. The key only becomes the site's when Porro accepts the grant, and the grant only ever goes to the site's own address.
+
+Connectors must check the request is the one the signed-in person's session started, keep the key encrypted, and only send the browser on to `porro_next` when `onPorro()` says it's on the Porro they're set up for. `ConnectError` carries a reason and a message for each way it can fail.
+
 ## What a report says about the server
 
 Each report includes a `system` block, so Porro can flag an end-of-life OS and match Ubuntu and Debian security notices against the server's installed packages:

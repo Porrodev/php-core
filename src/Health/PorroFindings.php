@@ -2,6 +2,7 @@
 
 namespace Porro\Core\Health;
 
+use InvalidArgumentException;
 use Porro\Core\Client;
 use Porro\Core\SiteKey;
 
@@ -21,7 +22,11 @@ final class PorroFindings
         private readonly Sources $sources,
         private readonly SiteKey $key,
         private readonly string $baseUrl = Client::DEFAULT_URL,
-    ) {}
+    ) {
+        if ($key->siteId === null) {
+            throw new InvalidArgumentException('This key has no site yet, so it can’t read findings. Finish connecting first.');
+        }
+    }
 
     /**
      * @return array{ok: bool, findings: list<Issue>, site_url: string|null, error: string|null}
