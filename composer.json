@@ -24,8 +24,9 @@
     },
     "minimum-stability": "stable",
     "require-dev": {
-        "pestphp/pest": "^3.0|^4.0",
-        "laravel/pint": "^1.18"
+        "1994/coding-standard": "^1.1",
+        "laravel/pint": "^1.18",
+        "pestphp/pest": "^3.0|^4.0"
     },
     "autoload-dev": {
         "psr-4": {
@@ -35,7 +36,31 @@
     },
     "scripts": {
         "test": "pest",
-        "lint": "pint"
+        "lint": "pint",
+        "lint:check": "pint --test",
+        "analyse": "phpstan analyse --no-progress --memory-limit=1G",
+        "ci:quality": [
+            "@lint:check",
+            "@analyse"
+        ],
+        "ci:test": [
+            "@test"
+        ],
+        "ci": [
+            "@ci:quality",
+            "@ci:test"
+        ],
+        "ci:lowest": [
+            "@composer update --prefer-lowest --prefer-stable --no-interaction --no-progress",
+            "@ci:test",
+            "@composer update --no-interaction --no-progress"
+        ],
+        "post-install-cmd": [
+            "qa-install-hooks"
+        ],
+        "post-update-cmd": [
+            "qa-install-hooks"
+        ]
     },
     "config": {
         "sort-packages": true,
@@ -46,5 +71,11 @@
     "support": {
         "issues": "https://github.com/Porrodev/php-core/issues",
         "source": "https://github.com/Porrodev/php-core"
-    }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/1994limited/coding-standard"
+        }
+    ]
 }

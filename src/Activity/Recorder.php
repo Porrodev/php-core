@@ -153,7 +153,7 @@ final class Recorder
                 // Proxies and private addresses here mean the site can't see
                 // visitor IPs; Forge and config ranges are simply skipped.
                 if (in_array($source, [ProtectedRanges::CLOUDFLARE, ProtectedRanges::RESERVED], true)) {
-                    ($this->increment)($this->key("{$hour}:t:proxied"), self::TTL);
+                    ($this->increment)($this->key("{$hour}:t:proxied"), self::TTL, 1);
                 }
 
                 return;
