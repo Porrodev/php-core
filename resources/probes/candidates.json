@@ -6752,13 +6752,13 @@
         }
     },
     "kev": {
-        "catalog_version": "2026.10.27",
+        "catalog_version": "2026.11.13",
         "catalog_url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
         "window_days": 90,
-        "cves": 104,
-        "covered": 3,
+        "cves": 115,
+        "covered": 5,
         "nuclei": {
-            "ref": "v10.5.1",
+            "ref": "v10.5.2",
             "license": "MIT",
             "repository": "https://github.com/projectdiscovery/nuclei-templates"
         },
@@ -6771,17 +6771,17 @@
                 "product": "Artifactory",
                 "template": "JFrog Artifactory - Anonymous Token Disclosure via Trailing Slash Auth Bypass",
                 "date_added": "2026-09-11",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-42018.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-42018.yaml"
             },
             {
                 "path": "/access/api/v1/aws/token/",
                 "category": "infrastructure",
-                "cve": "CVE-2026-42018",
+                "cve": "CVE-2026-42016",
                 "vendor": "JFrog",
                 "product": "Artifactory",
-                "template": "JFrog Artifactory - Anonymous Token Disclosure via Trailing Slash Auth Bypass",
+                "template": "JFrog Artifactory - Unauthenticated Admin Token Minting via Token Scope Bypass",
                 "date_added": "2026-09-11",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-42018.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-42016.yaml"
             },
             {
                 "path": "/access/api/v1/registry/join",
@@ -6791,17 +6791,27 @@
                 "product": "Artifactory",
                 "template": "JFrog Artifactory Access Blank Join Key Authentication Bypass",
                 "date_added": "2026-09-02",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-82329.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-82329.yaml"
             },
             {
-                "path": "/accessv2",
-                "category": "appliance",
-                "cve": "CVE-2026-8037",
-                "vendor": "Progress",
-                "product": "LoadMaster",
-                "template": "Progress ADC LoadMaster - Command Injection",
-                "date_added": "2026-08-07",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-8037.yaml"
+                "path": "/access/api/v1/tokens",
+                "category": "infrastructure",
+                "cve": "CVE-2026-42016",
+                "vendor": "JFrog",
+                "product": "Artifactory",
+                "template": "JFrog Artifactory - Unauthenticated Admin Token Minting via Token Scope Bypass",
+                "date_added": "2026-09-11",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-42016.yaml"
+            },
+            {
+                "path": "/access/api/v2/users",
+                "category": "infrastructure",
+                "cve": "CVE-2026-42016",
+                "vendor": "JFrog",
+                "product": "Artifactory",
+                "template": "JFrog Artifactory - Unauthenticated Admin Token Minting via Token Scope Bypass",
+                "date_added": "2026-09-11",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-42016.yaml"
             },
             {
                 "path": "/admin/API/mnt/Session/ActiveList",
@@ -6811,57 +6821,7 @@
                 "product": "Identity Services Engine",
                 "template": "Cisco Identity Services Engine - ise-kong API Gateway Authentication Bypass",
                 "date_added": "2026-09-16",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-76460.yaml"
-            },
-            {
-                "path": "/api/jobs/",
-                "category": "appliance",
-                "cve": "CVE-2025-62593",
-                "vendor": "Ray-Project",
-                "product": "Ray",
-                "template": "Ray < 2.52.0 - Remote Code Execution",
-                "date_added": "2026-08-17",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2025/CVE-2025-62593.yaml"
-            },
-            {
-                "path": "/api/jobs/{{jobid}}/logs",
-                "category": "appliance",
-                "cve": "CVE-2025-62593",
-                "vendor": "Ray-Project",
-                "product": "Ray",
-                "template": "Ray < 2.52.0 - Remote Code Execution",
-                "date_added": "2026-08-17",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2025/CVE-2025-62593.yaml"
-            },
-            {
-                "path": "/api/session/properties",
-                "category": "appliance",
-                "cve": "CVE-2026-72898",
-                "vendor": "Metabase",
-                "product": "Metabase",
-                "template": "Metabase - Unauthenticated SQL Injection",
-                "date_added": "2026-08-11",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-72898.yaml"
-            },
-            {
-                "path": "/api/session/reset_password",
-                "category": "appliance",
-                "cve": "CVE-2026-72898",
-                "vendor": "Metabase",
-                "product": "Metabase",
-                "template": "Metabase - Unauthenticated SQL Injection",
-                "date_added": "2026-08-11",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-72898.yaml"
-            },
-            {
-                "path": "/api/v1/auto_login",
-                "category": "appliance",
-                "cve": "CVE-2026-9198",
-                "vendor": "IBM",
-                "product": "Langflow",
-                "template": "IBM Langflow - Remote Code Execution",
-                "date_added": "2026-08-04",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9198.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-76460.yaml"
             },
             {
                 "path": "/api/v1/repos/{{ruser}}/{{rrepo}}/branches/main",
@@ -6871,7 +6831,7 @@
                 "product": "Gitea",
                 "template": "Gitea <= 1.27.0 - Pre-Auth Remote Code Execution",
                 "date_added": "2026-08-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-60004.yaml"
             },
             {
                 "path": "/api/v1/repos/{{ruser}}/{{rrepo}}/diffpatch",
@@ -6881,7 +6841,7 @@
                 "product": "Gitea",
                 "template": "Gitea <= 1.27.0 - Pre-Auth Remote Code Execution",
                 "date_added": "2026-08-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-60004.yaml"
             },
             {
                 "path": "/api/v1/repos/{{ruser}}/{{rrepo}}/raw/proof",
@@ -6891,7 +6851,7 @@
                 "product": "Gitea",
                 "template": "Gitea <= 1.27.0 - Pre-Auth Remote Code Execution",
                 "date_added": "2026-08-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-60004.yaml"
             },
             {
                 "path": "/api/v1/user/repos",
@@ -6901,17 +6861,17 @@
                 "product": "Gitea",
                 "template": "Gitea <= 1.27.0 - Pre-Auth Remote Code Execution",
                 "date_added": "2026-08-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-60004.yaml"
             },
             {
-                "path": "/api/v1/validate/code",
-                "category": "appliance",
-                "cve": "CVE-2026-9198",
-                "vendor": "IBM",
-                "product": "Langflow",
-                "template": "IBM Langflow - Remote Code Execution",
-                "date_added": "2026-08-04",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9198.yaml"
+                "path": "/api/v4/ci/lint",
+                "category": "infrastructure",
+                "cve": "CVE-2026-97229",
+                "vendor": "GitLab",
+                "product": "Community Edition and Enterprise Edition",
+                "template": "GitLab CE/EE < 19.2.8 / 19.3.5 / 19.4.2 - Unauthenticated RCE via Onigmo Integer Overflow",
+                "date_added": "2026-10-29",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-97229.yaml"
             },
             {
                 "path": "/api/v4/projects/1/repository/%66iles/{{randstr}}",
@@ -6921,7 +6881,7 @@
                 "product": "Community Edition and Enterprise Edition",
                 "template": "GitLab CE/EE <=19.1.7/19.2.5/19.3.1 - Arbitrary File Read",
                 "date_added": "2026-09-11",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-85706.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-85706.yaml"
             },
             {
                 "path": "/app",
@@ -6931,27 +6891,37 @@
                 "product": "NG/MF",
                 "template": "PaperCut NG/MF <=26.0.4 - Unauthenticated ConfigEditor Access via Tapestry Complex-Direct",
                 "date_added": "2026-08-31",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-81578.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-81578.yaml"
             },
             {
-                "path": "/app/agents/v1/commands/error",
+                "path": "/apps/richdocumentscode/proxy.php",
                 "category": "appliance",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
+                "cve": "CVE-2026-110447",
+                "vendor": "Collabora",
+                "product": "Collabora Online – Built-in CODE Server",
+                "template": "Collabora Built-in CODE Server < 26.4.303 - OS Command Injection",
+                "date_added": "2026-10-23",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-110447.yaml"
             },
             {
-                "path": "/app/agents/v1/register",
+                "path": "/apps/richdocumentscode_arm64/proxy.php",
                 "category": "appliance",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
+                "cve": "CVE-2026-110447",
+                "vendor": "Collabora",
+                "product": "Collabora Online – Built-in CODE Server",
+                "template": "Collabora Built-in CODE Server < 26.4.303 - OS Command Injection",
+                "date_added": "2026-10-23",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-110447.yaml"
+            },
+            {
+                "path": "/cgi-mod/index.cgi",
+                "category": "appliance",
+                "cve": "CVE-2026-116606",
+                "vendor": "Barracuda Networks",
+                "product": "Barracuda Email Security Gateway (ESG)",
+                "template": "Barracuda Email Security Gateway - Authentication Bypass",
+                "date_added": "2026-11-10",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-116606.yaml"
             },
             {
                 "path": "/cpmws/UpgradeSvcRemote",
@@ -6961,57 +6931,57 @@
                 "product": "Multiple Products",
                 "template": "Check Point Security Management - Unauthenticated Directory Traversal to RCE",
                 "date_added": "2026-09-22",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-93616.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-93616.yaml"
             },
             {
                 "path": "/customer/account/create",
                 "category": "appliance",
                 "cve": "CVE-2026-71362",
                 "vendor": "Adobe",
-                "product": "Commerce and Magento ",
+                "product": "Commerce and Magento",
                 "template": "Adobe Commerce/Magento - Customer Session Identity Switch",
                 "date_added": "2026-09-24",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-71362.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-71362.yaml"
             },
             {
                 "path": "/customer/account/createPost",
                 "category": "appliance",
                 "cve": "CVE-2026-71362",
                 "vendor": "Adobe",
-                "product": "Commerce and Magento ",
+                "product": "Commerce and Magento",
                 "template": "Adobe Commerce/Magento - Customer Session Identity Switch",
                 "date_added": "2026-09-24",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-71362.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-71362.yaml"
             },
             {
                 "path": "/customer/account/edit",
                 "category": "appliance",
                 "cve": "CVE-2026-71362",
                 "vendor": "Adobe",
-                "product": "Commerce and Magento ",
+                "product": "Commerce and Magento",
                 "template": "Adobe Commerce/Magento - Customer Session Identity Switch",
                 "date_added": "2026-09-24",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-71362.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-71362.yaml"
             },
             {
                 "path": "/customer/account/editPost",
                 "category": "appliance",
                 "cve": "CVE-2026-71362",
                 "vendor": "Adobe",
-                "product": "Commerce and Magento ",
+                "product": "Commerce and Magento",
                 "template": "Adobe Commerce/Magento - Customer Session Identity Switch",
                 "date_added": "2026-09-24",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-71362.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-71362.yaml"
             },
             {
                 "path": "/customer/section/load",
                 "category": "appliance",
                 "cve": "CVE-2026-71362",
                 "vendor": "Adobe",
-                "product": "Commerce and Magento ",
+                "product": "Commerce and Magento",
                 "template": "Adobe Commerce/Magento - Customer Session Identity Switch",
                 "date_added": "2026-09-24",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-71362.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-71362.yaml"
             },
             {
                 "path": "/download/resources/jira.webresources:color-picker-popup/images/..::..::..::..::..::WEB-INF::web.xml",
@@ -7021,7 +6991,27 @@
                 "product": "Multiple Products",
                 "template": "Atlassian Jira/Confluence/Bitbucket - Pre-Auth Arbitrary File Read",
                 "date_added": "2026-10-15",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-21589.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-21589.yaml"
+            },
+            {
+                "path": "/get_rdf",
+                "category": "appliance",
+                "cve": "CVE-2026-102764",
+                "vendor": "BeyondTrust",
+                "product": "Remote Support",
+                "template": "BeyondTrust Remote Support <= 26.2.3 - Origin Validation File Upload",
+                "date_added": "2026-10-16",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-102764.yaml"
+            },
+            {
+                "path": "/graphql",
+                "category": "appliance",
+                "cve": "CVE-2026-75650",
+                "vendor": "Adobe",
+                "product": "Commerce and Magento",
+                "template": "Adobe Commerce/Magento <= 2.4.9 - StyleSmuggler Unauthenticated RCE via SSTI",
+                "date_added": "2026-09-08",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-75650.yaml"
             },
             {
                 "path": "/help/about.cgi",
@@ -7031,7 +7021,17 @@
                 "product": "Secure Firewall Management Center (FMC) and Security Cloud Control (SCC) Firewall Management",
                 "template": "Cisco Secure Firewall Management Center - Authentication Bypass",
                 "date_added": "2026-09-09",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-20079.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-20079.yaml"
+            },
+            {
+                "path": "/identity",
+                "category": "appliance",
+                "cve": "CVE-2026-96652",
+                "vendor": "Plex",
+                "product": "Media Server",
+                "template": "Plex Media Server < 1.43.3.10861 - Unauthenticated SSRF via Companion Protocol (plex2shell)",
+                "date_added": "2026-10-20",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-96652.yaml"
             },
             {
                 "path": "/index.action",
@@ -7041,7 +7041,7 @@
                 "product": "Struts",
                 "template": "Apache S2-032 Struts - Remote Code Execution",
                 "date_added": "2026-10-08",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2016/CVE-2016-3081.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2016/CVE-2016-3081.yaml"
             },
             {
                 "path": "/login",
@@ -7051,7 +7051,7 @@
                 "product": "N-central",
                 "template": "N-able N-central <2026.3.1.14 - Pre-Authentication Remote Code Execution",
                 "date_added": "2026-09-08",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-86218.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-86218.yaml"
             },
             {
                 "path": "/mcp-rest/test/connection",
@@ -7061,17 +7061,17 @@
                 "product": "Starlette",
                 "template": "Starlette - Improper Validation of Unsafe Equivalence in Input",
                 "date_added": "2026-09-02",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-48710.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-48710.yaml"
             },
             {
                 "path": "/obs/api/json/ListSystemUsers.do",
                 "category": "java",
-                "cve": "CVE-2026-105133",
+                "cve": "CVE-2026-105134",
                 "vendor": "Ahsay",
                 "product": "AhsayCBS",
-                "template": "AhsayCBS - JSON API Authentication Bypass",
+                "template": "AhsayCBS <= 10.3.4 - Unauthenticated RCE",
                 "date_added": "2026-10-14",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-105133.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-105134.yaml"
             },
             {
                 "path": "/pa",
@@ -7081,17 +7081,77 @@
                 "product": "Switchvox",
                 "template": "Sangoma Switchvox < 8.4.0.2 - Unauthenticated SQL Injection",
                 "date_added": "2026-09-02",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-9586.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-9586.yaml"
             },
             {
-                "path": "/pd-tp-{{randstr}}.jspws",
+                "path": "/player/proxy/poll",
+                "category": "appliance",
+                "cve": "CVE-2026-96652",
+                "vendor": "Plex",
+                "product": "Media Server",
+                "template": "Plex Media Server < 1.43.3.10861 - Unauthenticated SSRF via Companion Protocol (plex2shell)",
+                "date_added": "2026-10-20",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-96652.yaml"
+            },
+            {
+                "path": "/player/timeline/subscribe",
+                "category": "appliance",
+                "cve": "CVE-2026-96652",
+                "vendor": "Plex",
+                "product": "Media Server",
+                "template": "Plex Media Server < 1.43.3.10861 - Unauthenticated SSRF via Companion Protocol (plex2shell)",
+                "date_added": "2026-10-20",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-96652.yaml"
+            },
+            {
+                "path": "/player/timeline/unsubscribe",
+                "category": "appliance",
+                "cve": "CVE-2026-96652",
+                "vendor": "Plex",
+                "product": "Media Server",
+                "template": "Plex Media Server < 1.43.3.10861 - Unauthenticated SSRF via Companion Protocol (plex2shell)",
+                "date_added": "2026-10-20",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-96652.yaml"
+            },
+            {
+                "path": "/rps/api/json/ListReceiver.do",
                 "category": "java",
-                "cve": "CVE-2026-63077",
-                "vendor": "JetBrains",
-                "product": "TeamCity",
-                "template": "JetBrains TeamCity < 2026.1.3, 2025.11.7 - Remote Code Execution",
-                "date_added": "2026-08-05",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-63077.yaml"
+                "cve": "CVE-2026-105134",
+                "vendor": "Ahsay",
+                "product": "AhsayCBS",
+                "template": "AhsayCBS <= 10.3.4 - Unauthenticated RCE",
+                "date_added": "2026-10-14",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-105134.yaml"
+            },
+            {
+                "path": "/rps/api/json/UpdateReceivers.do",
+                "category": "java",
+                "cve": "CVE-2026-105134",
+                "vendor": "Ahsay",
+                "product": "AhsayCBS",
+                "template": "AhsayCBS <= 10.3.4 - Unauthenticated RCE",
+                "date_added": "2026-10-14",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-105134.yaml"
+            },
+            {
+                "path": "/rps/obs7/rpsfile/upload",
+                "category": "appliance",
+                "cve": "CVE-2026-105134",
+                "vendor": "Ahsay",
+                "product": "AhsayCBS",
+                "template": "AhsayCBS <= 10.3.4 - Unauthenticated RCE",
+                "date_added": "2026-10-14",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-105134.yaml"
+            },
+            {
+                "path": "/rps/{{shell_name}}",
+                "category": "appliance",
+                "cve": "CVE-2026-105134",
+                "vendor": "Ahsay",
+                "product": "AhsayCBS",
+                "template": "AhsayCBS <= 10.3.4 - Unauthenticated RCE",
+                "date_added": "2026-10-14",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-105134.yaml"
             },
             {
                 "path": "/s/1.0/_/download/resources/com.atlassian.bitbucket.server.bitbucket-webpack-INTERNAL:avatar/avatar/..::..::..::..::..::WEB-INF::urlrewrite.xml",
@@ -7101,7 +7161,7 @@
                 "product": "Multiple Products",
                 "template": "Atlassian Jira/Confluence/Bitbucket - Pre-Auth Arbitrary File Read",
                 "date_added": "2026-10-15",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-21589.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-21589.yaml"
             },
             {
                 "path": "/s/1/_/download/resources/com.atlassian.confluence.plugins.dashboard-actions/images/..::..::..::..::..::..::..::..::WEB-INF::web.xml",
@@ -7111,7 +7171,7 @@
                 "product": "Multiple Products",
                 "template": "Atlassian Jira/Confluence/Bitbucket - Pre-Auth Arbitrary File Read",
                 "date_added": "2026-10-15",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-21589.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-21589.yaml"
             },
             {
                 "path": "/user/sign_up",
@@ -7121,7 +7181,27 @@
                 "product": "Gitea",
                 "template": "Gitea <= 1.27.0 - Pre-Auth Remote Code Execution",
                 "date_added": "2026-08-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-60004.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-60004.yaml"
+            },
+            {
+                "path": "/users/sign_in",
+                "category": "infrastructure",
+                "cve": "CVE-2026-97229",
+                "vendor": "GitLab",
+                "product": "Community Edition and Enterprise Edition",
+                "template": "GitLab CE/EE < 19.2.8 / 19.3.5 / 19.4.2 - Unauthenticated RCE via Onigmo Integer Overflow",
+                "date_added": "2026-10-29",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-97229.yaml"
+            },
+            {
+                "path": "/video/:/transcode/universal/start.m3u8",
+                "category": "appliance",
+                "cve": "CVE-2026-96655",
+                "vendor": "Plex",
+                "product": "Media Server",
+                "template": "Plex Media Server < 1.43.3.10861 - SSRF via Transcoder",
+                "date_added": "2026-10-20",
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-96655.yaml"
             },
             {
                 "path": "/wp-json/wp/v2/pages",
@@ -7131,7 +7211,7 @@
                 "product": "Core",
                 "template": "WordPress Core - PHP Template Path Traversal",
                 "date_added": "2026-09-25",
-                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.1/http/cves/2026/CVE-2026-87902.yaml"
+                "source_url": "https://github.com/projectdiscovery/nuclei-templates/blob/v10.5.2/http/cves/2026/CVE-2026-87902.yaml"
             }
         ],
         "no_template": [
@@ -7145,6 +7225,7 @@
             "CVE-2022-0995",
             "CVE-2023-22894",
             "CVE-2023-49105",
+            "CVE-2024-27834",
             "CVE-2025-25249",
             "CVE-2025-39682",
             "CVE-2025-39964",
@@ -7152,21 +7233,31 @@
             "CVE-2026-0322",
             "CVE-2026-102489",
             "CVE-2026-102490",
-            "CVE-2026-102764",
+            "CVE-2026-102895",
             "CVE-2026-104286",
-            "CVE-2026-105134",
             "CVE-2026-106931",
-            "CVE-2026-109619",
-            "CVE-2026-110447",
             "CVE-2026-110936",
+            "CVE-2026-111357",
             "CVE-2026-111497",
+            "CVE-2026-111560",
+            "CVE-2026-111793",
             "CVE-2026-114625",
-            "CVE-2026-18556",
+            "CVE-2026-114713",
+            "CVE-2026-116779",
+            "CVE-2026-118527",
+            "CVE-2026-119977",
+            "CVE-2026-123039",
+            "CVE-2026-123158",
+            "CVE-2026-123218",
+            "CVE-2026-124194",
+            "CVE-2026-125350",
             "CVE-2026-19490",
-            "CVE-2026-20349",
+            "CVE-2026-19868",
+            "CVE-2026-20320",
             "CVE-2026-21962",
             "CVE-2026-33824",
-            "CVE-2026-42016",
+            "CVE-2026-41709",
+            "CVE-2026-46300",
             "CVE-2026-48356",
             "CVE-2026-49869",
             "CVE-2026-53266",
@@ -7181,12 +7272,11 @@
             "CVE-2026-66384",
             "CVE-2026-67277",
             "CVE-2026-67279",
-            "CVE-2026-68820",
             "CVE-2026-72529",
             "CVE-2026-72530",
             "CVE-2026-7273",
             "CVE-2026-73570",
-            "CVE-2026-75650",
+            "CVE-2026-76418",
             "CVE-2026-76461",
             "CVE-2026-76504",
             "CVE-2026-76519",
@@ -7208,9 +7298,7 @@
             "CVE-2026-88779",
             "CVE-2026-93952",
             "CVE-2026-94127",
-            "CVE-2026-96652",
             "CVE-2026-96654",
-            "CVE-2026-96655",
             "CVE-2026-96656",
             "CVE-2026-96951"
         ]
