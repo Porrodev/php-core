@@ -54,3 +54,11 @@ it('retries network and server errors with a fresh signature, never rejections',
         ->and($result->error)->toBe('Invalid signature.')
         ->and($calls)->toHaveCount(1);
 });
+
+it('refuses a key that hasn’t finished connecting', function () {
+    $calls = [];
+
+    expect(fn () => new Client(SiteKey::generate(), 'https://porro.test', fakeTransport([[202, '{"ok":true}']], $calls)))
+        ->toThrow(InvalidArgumentException::class, 'no site yet')
+        ->and($calls)->toBeEmpty();
+});

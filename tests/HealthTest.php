@@ -504,3 +504,13 @@ describe('site health', function () {
             ->and(array_column($health['issues'], 'kind'))->toBe(['debug_mode']);
     });
 });
+
+it('never counts a key that hasn’t finished connecting as connected, or asks Porro with it', function () {
+    $calls = [];
+    $health = (new SiteHealth(fakeSources([], $calls)))->toArray(SiteKey::generate(), 'https://porro.test');
+
+    expect($health['connected'])->toBeFalse()
+        ->and($health['porro'])->toBeNull()
+        ->and($calls)->toBeEmpty()
+        ->and(fn () => new PorroFindings(fakeSources([]), SiteKey::generate(), 'https://porro.test'))->toThrow(InvalidArgumentException::class, 'no site yet');
+});

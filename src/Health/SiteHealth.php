@@ -165,6 +165,11 @@ final class SiteHealth
     {
         $porro = null;
 
+        // A key still waiting for its site isn't a connection.
+        if ($key?->siteId === null) {
+            $key = null;
+        }
+
         if ($key) {
             try {
                 $porro = (new PorroFindings($this->sources, $key, $porroUrl))->fetch();

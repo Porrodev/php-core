@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Connecting a site from its own control panel, with no key to copy. `SiteKey::generate()` makes a key pair on the site; `publicKey()` is the half Porro stores. A generated key has no site id yet and signs without `X-Porro-Site`; `withSite()` and `token()` turn it into a site key once Porro answers with the site's id. `seed()` and `fromSeed()` carry it across the browser round trip.
+- `ConnectClient::start()` asks Porro to connect and returns the page to send the browser to; `complete()` finishes it with the grant and returns the site key. `onPorro()` checks a URL is on the Porro the site is set up for before the browser follows it.
+- `ConnectError` turns each of Porro's refusals (turned down, expired, wrong grant, clock out, unreachable and so on) into a reason and a message a person can be shown. The grant and the seed are never in either.
+- `SiteKey::sign()` signs a message directly, and a dumped `SiteKey` shows its fingerprint, never the seed. `SiteKey::$siteId` is now nullable.
+- `Transport::stream()` is the default HTTP transport `Client` used to keep to itself.
+- A `SiteKey` can't be serialised, and its seed stays out of `var_export()`, array casts and JSON as well as dumps. `Client` and `Health\PorroFindings` refuse a key that has no site yet, and `SiteHealth::toArray()` never counts one as connected.
+- A transport that throws during a connect call is reported as Porro being unreachable, without the original exception (its trace holds the request).
 ## 0.3.7 - 2026-11-13
 
 - `Health\MailChecks` and `SiteHealth::mail()` check how the site sends email, from facts the connector passes (mailer, SMTP host, sender address, site URL, environment). In production it raises: email that isn't sent at all (`log`, `array` or a test inbox such as Mailpit or Mailtrap's sandbox), email sent by the web server itself (`sendmail`, PHP's `mail()` or SMTP on localhost), and a sender address that's missing, still a placeholder, a free mailbox sent through another service, or on a different domain from the site (a notice). Nothing touches the network.
