@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.9 - 2026-11-16
 
 - `Client::disconnect()` tells Porro the site has been disconnected, signed with the site key. Porro switches the key off with that call; the connector then deletes its copy.
 - `Result::keyTurnedAway()` says when Porro no longer accepts the site's key (the site was removed there, or given a new key), as distinct from a clock that's out.
