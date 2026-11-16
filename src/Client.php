@@ -43,14 +43,28 @@ final class Client
         return $result;
     }
 
+    /**
+     * Tells Porro this site has been disconnected. Porro switches the key
+     * off with this call, so the caller deletes its copy afterwards,
+     * whatever the answer: the person asked for the site to stop reporting.
+     */
+    public function disconnect(): Result
+    {
+        return $this->post('/api/v1/disconnect', '{}');
+    }
+
     private function deliver(Report $report): Result
     {
-        $body = $report->toJson();
-        $url = rtrim($this->baseUrl, '/').'/api/v1/reports';
+        return $this->post('/api/v1/reports', $report->toJson());
+    }
+
+    private function post(string $path, string $body): Result
+    {
+        $url = rtrim($this->baseUrl, '/').$path;
         $attempt = 0;
 
         while (true) {
-            $headers = $this->key->headers($body, null, 'POST', '/api/v1/reports') + Transport::jsonHeaders();
+            $headers = $this->key->headers($body, null, 'POST', $path) + Transport::jsonHeaders();
 
             [$status, $response] = ($this->transport ?? Transport::stream($this->timeout))($url, $headers, $body);
             $json = json_decode($response, true);

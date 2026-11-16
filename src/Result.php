@@ -15,4 +15,14 @@ final class Result
         // sends it straight away, so connectors needn't act on it.
         public readonly bool $needSystemPackages = false,
     ) {}
+
+    /**
+     * Porro no longer accepts this site's key: the site was removed there,
+     * given a new key, or disconnected. A clock that's out is a 401 too,
+     * with its own message, and isn't this.
+     */
+    public function keyTurnedAway(): bool
+    {
+        return $this->status === 401 && $this->error === 'Invalid signature.';
+    }
 }

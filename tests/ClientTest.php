@@ -62,3 +62,39 @@ it('refuses a key that hasn’t finished connecting', function () {
         ->toThrow(InvalidArgumentException::class, 'no site yet')
         ->and($calls)->toBeEmpty();
 });
+
+it('tells Porro the site has been disconnected, signed for that address only', function () {
+    $key = siteKey();
+    $calls = [];
+    $client = new Client(SiteKey::parse($key['token']), 'https://porro.test/', fakeTransport([[200, '{"ok":true}']], $calls), retries: 0);
+
+    $result = $client->disconnect();
+
+    expect($result->ok)->toBeTrue()
+        ->and($calls[0]['url'])->toBe('https://porro.test/api/v1/disconnect')
+        ->and($calls[0]['body'])->toBe('{}')
+        ->and(signatureIsValid($calls[0]['headers'], $calls[0]['body'], $key['public'], 'POST', '/api/v1/disconnect'))->toBeTrue()
+        ->and(signatureIsValid($calls[0]['headers'], $calls[0]['body'], $key['public']))->toBeFalse();
+});
+
+it('says when Porro didn’t answer a disconnect', function () {
+    $calls = [];
+    $client = new Client(SiteKey::parse(siteKey()['token']), 'https://porro.test', fakeTransport([[0, 'timeout']], $calls), retries: 0);
+
+    $result = $client->disconnect();
+
+    expect($result->ok)->toBeFalse()
+        ->and($result->status)->toBe(0)
+        ->and($result->keyTurnedAway())->toBeFalse();
+});
+
+it('knows a key Porro has turned away from a clock that is out', function () {
+    $calls = [];
+    $turnedAway = (new Client(SiteKey::parse(siteKey()['token']), 'https://porro.test', fakeTransport([[401, '{"ok":false,"error":"Invalid signature."}']], $calls)))
+        ->send(new Report('porro/laravel-connector', 'laravel'));
+    $clock = (new Client(SiteKey::parse(siteKey()['token']), 'https://porro.test', fakeTransport([[401, '{"ok":false,"error":"Report timestamp outside the allowed window. Check the server clock."}']], $calls)))
+        ->send(new Report('porro/laravel-connector', 'laravel'));
+
+    expect($turnedAway->keyTurnedAway())->toBeTrue()
+        ->and($clock->keyTurnedAway())->toBeFalse();
+});

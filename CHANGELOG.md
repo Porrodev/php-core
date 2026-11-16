@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `Client::disconnect()` tells Porro the site has been disconnected, signed with the site key. Porro switches the key off with that call; the connector then deletes its copy.
+- `Result::keyTurnedAway()` says when Porro no longer accepts the site's key (the site was removed there, or given a new key), as distinct from a clock that's out.
+
 ## 0.3.8 - 2026-11-16
 
 - Connecting a site from its own control panel, with no key to copy. `SiteKey::generate()` makes a key pair on the site; `publicKey()` is the half Porro stores. A generated key has no site id yet and signs without `X-Porro-Site`; `withSite()` and `token()` turn it into a site key once Porro answers with the site's id. `seed()` and `fromSeed()` carry it across the browser round trip.
